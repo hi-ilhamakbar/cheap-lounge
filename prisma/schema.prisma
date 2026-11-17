@@ -1,0 +1,278 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAYMENT_SUBMITTED
+  PAYMENT_VERIFIED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+enum PassengerType {
+  ADULT
+  CHILD
+}
+
+enum PaymentStatus {
+  SUBMITTED
+  VERIFIED
+  REJECTED
+}
+
+enum LoungeSource {
+  LOUNGEKEY
+  MANUAL
+}
+
+enum EmailType {
+  ORDER_CONFIRMATION
+  PAYMENT_VERIFIED
+  PAYMENT_REJECTED
+  ORDER_COMPLETED
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum Language {
+  id
+  en
+}
+
+/// Airport reference data (name / city / country / IATA). Contains no lounge information.
+model Airport {
+  iata      String   @id
+  name      String
+  city      String
+  country   String
+  timezone  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lounges Lounge[]
+
+  @@index([city])
+  @@index([name])
+}
+
+/// Lounge records. LOUNGEKEY rows are a cache of the authorized API; MANUAL rows are entered by
+/// admins from an authorized LoungeKey source. Optional fields stay NULL when the source has no data.
+model Lounge {
+  id           String       @id @default(cuid())
+  source       LoungeSource
+  externalId   String
+  airportIata  String
+  name         String
+  terminal     String?
+  location     String?
+  openingHours String?
+  description  String?
+  facilities   String[]
+  images       String[]
+  conditions   String?
+  accessInfo   String?
+  active       Boolean      @default(true)
+  raw          Json?
+  syncedAt     DateTime     @default(now())
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  airport Airport @relation(fields: [airportIata], references: [iata])
+  orders  Order[]
+
+  @@unique([source, externalId])
+  @@index([airportIata])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  email     String
+  whatsapp  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
+
+  @@unique([email, whatsapp])
+  @@index([whatsapp])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  orderCode       String      @unique
+  accessToken     String      @unique
+  idempotencyKey  String      @unique
+  language        Language    @default(id)
+  status          OrderStatus @default(PENDING_PAYMENT)
+
+  customerId String
+
+  airportIata      String
+  airportName      String
+  airportCity      String
+  airportCountry   String
+  loungeId         String?
+  loungeSource     LoungeSource
+  loungeExternalId String
+  loungeName       String
+  loungeTerminal   String?
+
+  visitDate DateTime @db.Date
+
+  adultQty       Int
+  childQty       Int
+  adultUnitPrice Int
+  childUnitPrice Int
+  adultSubtotal  Int
+  childSubtotal  Int
+  totalAmount    Int
+  currency       String @default("IDR")
+
+  termsAcceptedAt   DateTime
+  paymentVerifiedAt DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  adminNote         String?
+  clientIp          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer      Customer            @relation(fields: [customerId], references: [id])
+  lounge        Lounge?             @relation(fields: [loungeId], references: [id], onDelete: SetNull)
+  passengers    Passenger[]
+  payments      Payment[]
+  emails        EmailNotification[]
+  events        OrderEvent[]
+
+  @@index([status])
+  @@index([visitDate])
+  @@index([createdAt])
+  @@index([customerId])
+}
+
+model Passenger {
+  id       String        @id @default(cuid())
+  orderId  String
+  type     PassengerType
+  position Int
+  fullName String
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, type, position])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  orderId         String
+  method          String        @default("QRIS_STATIC")
+  amount          Int
+  status          PaymentStatus @default(SUBMITTED)
+  payerName       String?
+  customerNote    String?
+  proofData       Bytes
+  proofMime       String
+  proofFilename   String
+  proofSha256     String
+  submittedAt     DateTime      @default(now())
+  reviewedAt      DateTime?
+  reviewedById    String?
+  rejectionReason String?
+
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reviewedBy AdminUser? @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, proofSha256])
+  @@index([orderId, status])
+}
+
+model EmailNotification {
+  id                String      @id @default(cuid())
+  orderId           String
+  type              EmailType
+  toEmail           String
+  ccEmails          String[]
+  subject           String
+  status            EmailStatus @default(PENDING)
+  attempts          Int         @default(0)
+  /// Incremented when an admin forces a resend; part of the provider idempotency key.
+  generation        Int         @default(0)
+  lastError         String?
+  providerMessageId String?
+  nextAttemptAt     DateTime    @default(now())
+  sentAt            DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// One email of each type per order → no duplicate confirmations on refresh/retry.
+  @@unique([orderId, type])
+  @@index([status, nextAttemptAt])
+}
+
+model OrderEvent {
+  id         String       @id @default(cuid())
+  orderId    String
+  fromStatus OrderStatus?
+  toStatus   OrderStatus?
+  action     String
+  note       String?
+  adminId    String?
+  createdAt  DateTime     @default(now())
+
+  order Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  admin AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions         AdminSession[]
+  reviewedPayments Payment[]
+  events           OrderEvent[]
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  adminId   String
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+}
+
+/// Fixed-window rate limit counters (shared across serverless instances).
+model RateLimit {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+}
