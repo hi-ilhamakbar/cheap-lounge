@@ -2,7 +2,7 @@ import { formatIDR } from "../pricing.ts";
 import { formatVisitDate } from "../dates.ts";
 import { BRAND_NAME, QRIS, WHATSAPP_DISPLAY, WHATSAPP_URL } from "../business.ts";
 
-export type EmailKind = "ORDER_CONFIRMATION" | "PAYMENT_VERIFIED" | "PAYMENT_REJECTED" | "ORDER_COMPLETED";
+export type EmailKind = "ORDER_CONFIRMATION" | "PAYMENT_SUBMITTED";
 
 export type EmailOrder = {
   orderCode: string;
@@ -27,7 +27,8 @@ export type EmailOrder = {
   adultNames: string[];
   childNames: string[];
   orderUrl: string;
-  rejectionReason?: string | null;
+  /** PAYMENT_SUBMITTED only */
+  payment?: { payerName?: string | null; note?: string | null; fileName: string };
 };
 
 const esc = (s: string) =>
@@ -56,9 +57,7 @@ const L = {
   id: {
     intro: {
       ORDER_CONFIRMATION: "Terima kasih! Pesanan voucher lounge bandara Anda telah kami terima. Silakan selesaikan pembayaran melalui QRIS.",
-      PAYMENT_VERIFIED: "Pembayaran Anda telah kami verifikasi. Pesanan Anda sedang kami proses.",
-      PAYMENT_REJECTED: "Bukti pembayaran Anda belum dapat kami verifikasi. Silakan unggah ulang bukti pembayaran yang benar.",
-      ORDER_COMPLETED: "Pesanan Anda telah selesai. Terima kasih telah memesan bersama JASA TIKET MURAH.",
+      PAYMENT_SUBMITTED: "Bukti pembayaran Anda telah kami terima (terlampir). Tim kami akan memverifikasi pembayaran dan menghubungi Anda melalui email atau WhatsApp.",
     },
     orderId: "ID Pesanan",
     status: "Status pembayaran",
@@ -87,16 +86,17 @@ const L = {
     open: "Buka halaman pesanan",
     singleEntry: "Penting: setiap voucher hanya berlaku untuk SATU KALI MASUK per penumpang, tidak dapat digunakan ulang, dan bukan keanggotaan atau akses tanpa batas.",
     notConfirmation: "Informasi lounge bukan konfirmasi ketersediaan. Akses tunduk pada ketentuan dan kapasitas lounge.",
-    reason: "Alasan",
+    proof: "Bukti pembayaran",
+    payer: "Nama pengirim",
+    note: "Catatan",
+    attached: "terlampir",
     support: "Butuh bantuan? Hubungi kami via WhatsApp",
     na: "-",
   },
   en: {
     intro: {
       ORDER_CONFIRMATION: "Thank you! We have received your airport lounge voucher order. Please complete your payment via QRIS.",
-      PAYMENT_VERIFIED: "Your payment has been verified. We are now processing your order.",
-      PAYMENT_REJECTED: "We could not verify your payment proof. Please upload the correct payment proof again.",
-      ORDER_COMPLETED: "Your order has been completed. Thank you for booking with JASA TIKET MURAH.",
+      PAYMENT_SUBMITTED: "We have received your payment proof (attached). Our team will verify the payment and contact you by email or WhatsApp.",
     },
     orderId: "Order ID",
     status: "Payment status",
@@ -125,23 +125,20 @@ const L = {
     open: "Open order page",
     singleEntry: "Important: each voucher is valid for a SINGLE ENTRY per passenger only. It cannot be reused and is not a membership or unlimited-access pass.",
     notConfirmation: "Lounge information is not a confirmation of availability. Access is subject to lounge conditions and capacity.",
-    reason: "Reason",
+    proof: "Payment proof",
+    payer: "Sender name",
+    note: "Note",
+    attached: "attached",
     support: "Need help? Contact us on WhatsApp",
     na: "-",
   },
 };
 
 export function emailSubject(kind: EmailKind, orderCode: string, lang: "id" | "en"): string {
-  switch (kind) {
-    case "ORDER_CONFIRMATION":
-      return `Airport Lounge Voucher Order Confirmation – ${orderCode}`;
-    case "PAYMENT_VERIFIED":
-      return lang === "id" ? `Pembayaran Terverifikasi – Airport Lounge Voucher – ${orderCode}` : `Payment Verified – Airport Lounge Voucher – ${orderCode}`;
-    case "PAYMENT_REJECTED":
-      return lang === "id" ? `Bukti Pembayaran Perlu Diperbarui – ${orderCode}` : `Payment Proof Needs Attention – ${orderCode}`;
-    case "ORDER_COMPLETED":
-      return lang === "id" ? `Pesanan Selesai – Airport Lounge Voucher – ${orderCode}` : `Order Completed – Airport Lounge Voucher – ${orderCode}`;
-  }
+  if (kind === "ORDER_CONFIRMATION") return `Airport Lounge Voucher Order Confirmation – ${orderCode}`;
+  return lang === "id"
+    ? `Bukti Pembayaran Diterima – Airport Lounge Voucher – ${orderCode}`
+    : `Payment Proof Received – Airport Lounge Voucher – ${orderCode}`;
 }
 
 export function renderOrderEmail(kind: EmailKind, o: EmailOrder): { subject: string; html: string; text: string } {
@@ -151,7 +148,7 @@ export function renderOrderEmail(kind: EmailKind, o: EmailOrder): { subject: str
   const statusLabel = STATUS[lang][o.status] ?? o.status;
   const visit = formatVisitDate(o.visitDate, lang);
   const money = (n: number) => formatIDR(n, lang);
-  const showPay = kind === "ORDER_CONFIRMATION" || kind === "PAYMENT_REJECTED";
+  const showPay = kind === "ORDER_CONFIRMATION";
 
   const row = (label: string, value: string) =>
     `<tr><td style="padding:6px 0;color:#64748b;font-size:14px;width:42%;vertical-align:top">${esc(label)}</td><td style="padding:6px 0;color:#0f1b3d;font-size:14px;font-weight:600">${esc(value)}</td></tr>`;
@@ -179,7 +176,7 @@ export function renderOrderEmail(kind: EmailKind, o: EmailOrder): { subject: str
 </td></tr>
 <tr><td style="padding:28px 32px 8px">
   <p style="margin:0 0 16px;color:#0f1b3d;font-size:15px;line-height:1.6">${esc(t.intro[kind])}</p>
-  ${kind === "PAYMENT_REJECTED" && o.rejectionReason ? `<p style="margin:0 0 16px;padding:12px 14px;background:#fef2f2;border-radius:10px;color:#991b1b;font-size:14px"><strong>${esc(t.reason)}:</strong> ${esc(o.rejectionReason)}</p>` : ""}
+  ${o.payment ? `<p style="margin:0 0 16px;padding:12px 14px;background:#ecfdf5;border-radius:10px;color:#065f46;font-size:14px"><strong>${esc(t.proof)}:</strong> ${esc(o.payment.fileName)} (${esc(t.attached)})${o.payment.payerName ? `<br><strong>${esc(t.payer)}:</strong> ${esc(o.payment.payerName)}` : ""}${o.payment.note ? `<br><strong>${esc(t.note)}:</strong> ${esc(o.payment.note)}` : ""}</p>` : ""}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:12px;padding:16px 18px">
     ${row(t.orderId, o.orderCode)}
     ${row(t.status, statusLabel)}
@@ -207,7 +204,9 @@ export function renderOrderEmail(kind: EmailKind, o: EmailOrder): { subject: str
     `${BRAND_NAME} — Airport Lounge Voucher`,
     "",
     t.intro[kind],
-    kind === "PAYMENT_REJECTED" && o.rejectionReason ? `${t.reason}: ${o.rejectionReason}` : "",
+    o.payment ? `${t.proof}: ${o.payment.fileName} (${t.attached})` : "",
+    o.payment?.payerName ? `${t.payer}: ${o.payment.payerName}` : "",
+    o.payment?.note ? `${t.note}: ${o.payment.note}` : "",
     "",
     `${t.orderId}: ${o.orderCode}`,
     `${t.status}: ${statusLabel}`,

@@ -1,24 +1,12 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { providerMode } from "@/lib/lounges/service";
 
 export const dynamic = "force-dynamic";
 
-/** Liveness/readiness probe. Reports configuration presence only — never secret values. */
+/** Reports which integrations are configured — never secret values. */
 export async function GET() {
-  let database = "ok";
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-  } catch {
-    database = "error";
-  }
-  return NextResponse.json(
-    {
-      ok: database === "ok",
-      database,
-      loungeProvider: providerMode(),
-      email: process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? "configured" : "not_configured",
-    },
-    { status: database === "ok" ? 200 : 503 },
-  );
+  const email = process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? "configured" : "not_configured";
+  const orderSecret = (process.env.ORDER_SECRET ?? "").length >= 32 ? "configured" : "not_configured";
+  const ok = email === "configured" && orderSecret === "configured" && providerMode() !== "none";
+  return NextResponse.json({ ok, loungeProvider: providerMode(), email, orderSecret }, { status: ok ? 200 : 503 });
 }

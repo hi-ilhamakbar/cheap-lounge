@@ -2,9 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { calculatePrice, formatIDR } from "../src/lib/pricing.ts";
 import { addDaysISO, bookingWindow, isWithinBookingWindow, isValidISODate, localTodayFromOffset, compactDateInTz } from "../src/lib/dates.ts";
-import { generateOrderCode, ORDER_CODE_RE, generateAccessToken } from "../src/lib/order-code.ts";
 import { normalizeWhatsApp } from "../src/lib/phone.ts";
-import { canTransition, allowedNextStatuses } from "../src/lib/order-status.ts";
 import { createOrderSchema, issuesToFieldErrors, sanitizeText } from "../src/lib/validation.ts";
 
 test("pricing: spec example 2 adults + 1 child = 575,000", () => {
@@ -55,15 +53,6 @@ test("dates: customer local today from browser offset", () => {
   assert.equal(compactDateInTz(now, "Asia/Jakarta"), "20261118");
 });
 
-test("order code format CLV-YYYYMMDD-XXXXX", () => {
-  const code = generateOrderCode(new Date("2026-11-17T18:30:00Z"));
-  assert.match(code, ORDER_CODE_RE);
-  assert.ok(code.startsWith("CLV-20261118-"));
-  const many = new Set(Array.from({ length: 2000 }, () => generateOrderCode()));
-  assert.ok(many.size > 1990);
-  assert.equal(generateAccessToken().length, 48);
-});
-
 test("whatsapp normalisation", () => {
   assert.equal(normalizeWhatsApp("0812-3456-7890"), "+6281234567890");
   assert.equal(normalizeWhatsApp("+62 812 3456 7890"), "+6281234567890");
@@ -74,13 +63,6 @@ test("whatsapp normalisation", () => {
   assert.equal(normalizeWhatsApp("+62 21 1234567"), null); // landline
   assert.equal(normalizeWhatsApp("12345"), null);
   assert.equal(normalizeWhatsApp("abc"), null);
-});
-
-test("status transitions: no shortcut to paid", () => {
-  assert.equal(canTransition("PENDING_PAYMENT", "PAYMENT_VERIFIED"), false);
-  assert.equal(canTransition("PAYMENT_SUBMITTED", "PAYMENT_VERIFIED"), false);
-  assert.equal(canTransition("PAYMENT_VERIFIED", "COMPLETED"), true);
-  assert.deepEqual(allowedNextStatuses("COMPLETED"), []);
 });
 
 const validOrder = {

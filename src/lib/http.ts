@@ -16,7 +16,7 @@ export async function clientIp(): Promise<string> {
 /** Returns a 429 response when the limit is exceeded, otherwise null. */
 export async function rateLimitOr429(bucket: string, limit: number, windowSeconds: number) {
   const ip = await clientIp();
-  const res = await checkRateLimit(`${bucket}:${ip}`, limit, windowSeconds);
+  const res = checkRateLimit(`${bucket}:${ip}`, limit, windowSeconds);
   if (!res.allowed) {
     return NextResponse.json(
       { ok: false, error: "errors.rateLimited" },

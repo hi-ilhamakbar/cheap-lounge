@@ -79,7 +79,7 @@ export default async function LoungeDetailPage({ params }: { params: Promise<{ i
             <Notice>{t.lounge.disclaimer}</Notice>
             <p className="text-xs text-slate-500">
               {t.lounge.source}: {lounge.source === "LOUNGEKEY" ? t.lounge.sourceLoungeKey : t.lounge.sourceManual} ·{" "}
-              {new Date(lounge.syncedAt).toLocaleDateString(lang === "id" ? "id-ID" : "en-GB")}
+              {new Date(lounge.fetchedAt).toLocaleDateString(lang === "id" ? "id-ID" : "en-GB")}
             </p>
             <Link href={`/book?lounge=${lounge.id}`} className="btn-primary w-full">
               {t.lounge.select} <IconChevronRight className="size-4" />

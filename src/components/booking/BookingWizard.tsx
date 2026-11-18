@@ -234,7 +234,7 @@ export function BookingWizard({ initialLounge }: { initialLounge: LoungeWithAirp
         try {
           sessionStorage.removeItem(DRAFT_KEY);
         } catch {}
-        router.push(`/order/${data.orderCode}?t=${data.accessToken}`);
+        router.push(`/order/${data.orderCode}?d=${data.token}`);
         return; // keep the button disabled while navigating
       }
       const fields = (data.fields ?? {}) as Errors;

@@ -1,20 +1,26 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/client";
 import { MAX_PROOF_BYTES, ALLOWED_PROOF_MIME } from "@/lib/business";
 import { Notice } from "../Notice";
 import { IconSpinner, IconUpload } from "../icons";
+import { proofKey, PROOF_EVENT } from "./OrderStatus";
 
 export function PaymentProofForm({ orderCode, token }: { orderCode: string; token: string }) {
   const { t, tk } = useI18n();
-  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [again, setAgain] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(proofKey(orderCode)) === "1") setDone(true);
+    } catch {}
+  }, [orderCode]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,8 +38,13 @@ export function PaymentProofForm({ orderCode, token }: { orderCode: string; toke
       const res = await fetch(`/api/orders/${encodeURIComponent(orderCode)}/payment-proof`, { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
+        try {
+          localStorage.setItem(proofKey(orderCode), "1");
+        } catch {}
+        window.dispatchEvent(new Event(PROOF_EVENT));
         setDone(true);
-        router.refresh();
+        setAgain(false);
+        setBusy(false);
         return;
       }
       setError(tk(data.error ?? "errors.server"));
@@ -43,7 +54,15 @@ export function PaymentProofForm({ orderCode, token }: { orderCode: string; toke
     setBusy(false);
   }
 
-  if (done) return <div className="mt-4"><Notice>{t.order.proofSubmitted}</Notice></div>;
+  if (done && !again)
+    return (
+      <div className="mt-4 space-y-3">
+        <Notice>{t.order.proofSubmitted}</Notice>
+        <button type="button" className="text-sm font-semibold text-navy-700 underline" onClick={() => setAgain(true)}>
+          {t.order.sendAnother}
+        </button>
+      </div>
+    );
 
   return (
     <form onSubmit={onSubmit} className="mt-4 space-y-4" encType="multipart/form-data">

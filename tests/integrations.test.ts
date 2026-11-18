@@ -46,13 +46,13 @@ test("confirmation email contains every required field (ID)", () => {
   assert.ok(!html.includes("<Lounge>"));
 });
 
-test("English email & follow-up types", () => {
-  const { text } = renderOrderEmail("PAYMENT_VERIFIED", { ...order, language: "en", status: "PAYMENT_VERIFIED" });
-  assert.ok(text.includes("Payment Verified"));
-  assert.ok(text.includes("SINGLE ENTRY"));
-  assert.ok(!text.includes("Payment instructions")); // only on confirmation / rejection
-  const rej = renderOrderEmail("PAYMENT_REJECTED", { ...order, language: "en", rejectionReason: "Amount mismatch" });
-  assert.ok(rej.text.includes("Amount mismatch"));
+test("English confirmation and proof-received email", () => {
+  const { text } = renderOrderEmail("ORDER_CONFIRMATION", { ...order, language: "en" });
+  assert.ok(text.includes("Pending Payment") && text.includes("SINGLE ENTRY") && text.includes("Payment instructions"));
+  const p = renderOrderEmail("PAYMENT_SUBMITTED", { ...order, language: "en", status: "PAYMENT_SUBMITTED", payment: { fileName: "CLV-proof.jpg", payerName: "Budi", note: null } });
+  assert.equal(p.subject, "Payment Proof Received – Airport Lounge Voucher – CLV-20261118-AB2CD");
+  assert.ok(p.text.includes("Payment Submitted") && p.text.includes("CLV-proof.jpg (attached)") && p.text.includes("Sender name: Budi"));
+  assert.ok(!p.text.includes("Payment instructions"));
 });
 
 test("lounge normalizer maps only fields that exist", () => {

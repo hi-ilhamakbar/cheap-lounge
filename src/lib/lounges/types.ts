@@ -16,10 +16,11 @@ export type NormalizedLounge = {
   raw?: unknown;
 };
 
-export type LoungeView = NormalizedLounge & {
+export type LoungeView = Omit<NormalizedLounge, "raw"> & {
+  /** Stable public id: "<IATA>-<base64url(externalId)>" (no database needed). */
   id: string;
-  source: "LOUNGEKEY" | "MANUAL";
-  syncedAt: string;
+  source: "LOUNGEKEY" | "FILE";
+  fetchedAt: string;
 };
 
 export type LoungeListResult =
@@ -29,7 +30,7 @@ export type LoungeListResult =
   | { status: "error"; message: string };
 
 export interface LoungeProvider {
-  readonly name: "loungekey" | "database";
+  readonly name: "loungekey";
   isConfigured(): boolean;
   /** Optional: provider-backed airport search. Falls back to local reference data when absent/failing. */
   searchAirports?(query: string): Promise<AirportInfo[]>;

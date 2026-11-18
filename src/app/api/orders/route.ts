@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createOrderSchema, issuesToFieldErrors } from "@/lib/validation";
 import { createOrder, OrderError } from "@/lib/orders";
-import { clientIp, jsonError, rateLimitOr429 } from "@/lib/http";
+import { jsonError, rateLimitOr429 } from "@/lib/http";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
     return jsonError(422, "errors.fixFields", { fields: issuesToFieldErrors(parsed.error) });
   }
   try {
-    const result = await createOrder(parsed.data, await clientIp());
-    return NextResponse.json({ ok: true, ...result }, { status: result.duplicate ? 200 : 201 });
+    const result = await createOrder(parsed.data);
+    return NextResponse.json({ ok: true, ...result }, { status: 201 });
   } catch (e) {
     if (e instanceof OrderError) {
       return jsonError(e.status, e.key, e.field ? { fields: { [e.field]: e.key } } : undefined);

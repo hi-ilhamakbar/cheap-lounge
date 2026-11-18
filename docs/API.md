@@ -1,27 +1,22 @@
 # API & Integration Documentation
 
-All endpoints are Next.js Route Handlers under `src/app/api`. Errors return
-`{ "ok": false, "error": "errors.<key>", "fields"?: { "<field>": "errors.<key>" } }` — the
-`errors.*` keys are translated client-side (`src/lib/i18n/dictionaries.ts`).
+**No database.** Every order is delivered by email (customer + real CC to
+`airportloungevoucher@gmail.com` and `jasatiketmurah@gmail.com`) — that email is the order record.
 
-## Public endpoints
+Errors return `{ "ok": false, "error": "errors.<key>", "fields"?: {...} }`; keys are translated
+client-side (`src/lib/i18n/dictionaries.ts`).
 
-| Method | Path | Rate limit | Purpose |
+## Endpoints
+
+| Method | Path | Rate limit* | Purpose |
 |---|---|---|---|
-| GET | `/api/airports/search?q=` | 60/min/IP | Airport autocomplete by name, city, country or IATA code (min 2 chars) |
-| GET | `/api/airports/{IATA}/lounges` | 60/min/IP | Lounges for an airport from the configured authorized source |
-| POST | `/api/orders` | 10/10 min/IP | Create an order (idempotent) |
-| POST | `/api/orders/{orderCode}/payment-proof` | 8/10 min/IP | Upload payment proof (multipart) |
-| GET | `/api/health` | — | DB connectivity + which integrations are configured (no secrets) |
+| GET | `/api/airports/search?q=` | 60/min/IP | Airport autocomplete (name, city, country, IATA) |
+| GET | `/api/airports/{IATA}/lounges` | 60/min/IP | Lounges from the authorized source |
+| POST | `/api/orders` | 10/10 min/IP | Validate, price, email the order |
+| POST | `/api/orders/{orderCode}/payment-proof` | 8/10 min/IP | Email the payment proof as an attachment |
+| GET | `/api/health` | — | Which integrations are configured (no secrets) |
 
-### `GET /api/airports/{IATA}/lounges`
-* `200 { ok: true, status: "ok", airport, lounges: LoungeView[], stale? }` — `stale: true` means the
-  LoungeKey API failed and previously synced data (< 24 h old) is shown.
-* `404 { status: "airport_not_found" }`
-* `503 { status: "not_configured" }` — no authorized lounge source configured. **No data is invented.**
-* `502 { status: "error" }` — source unreachable and no recent cache.
-
-`LoungeView` fields not supplied by the source are `null` / `[]`; the UI shows "Information unavailable".
+\* In-memory, per server instance (best-effort). For strict limits add Vercel Firewall / Cloudflare rules.
 
 ### `POST /api/orders`
 ```json
@@ -32,7 +27,7 @@ All endpoints are Next.js Route Handlers under `src/app/api`. Errors return
   "email": "budi@example.com",
   "whatsapp": "0812 3456 7890",
   "airportIata": "CGK",
-  "loungeId": "<Lounge.id from the lounges endpoint>",
+  "loungeId": "<id from the lounges endpoint>",
   "visitDate": "2026-11-20",
   "tzOffsetMinutes": -420,
   "adultQty": 2, "childQty": 1,
@@ -41,48 +36,32 @@ All endpoints are Next.js Route Handlers under `src/app/api`. Errors return
   "acceptTerms": true
 }
 ```
-Server-side rules (`src/lib/orders.ts`): validation with zod; WhatsApp normalised to E.164 (+62
-default); visit date must be within today…today+90 in the customer's local calendar (derived from
-`tzOffsetMinutes`); lounge must be active in the authorized source and belong to the airport; **price is
-recalculated on the server** (adult IDR 200,000, child IDR 175,000) and the DB enforces
-`total = adultSubtotal + childSubtotal`.
+Server rules (`src/lib/orders.ts`): zod validation; WhatsApp normalised to E.164 (+62 default); visit
+date within today…today+90 in the customer's local calendar; lounge re-read from the authorized source;
+**price recalculated on the server** (adult IDR 200,000, child IDR 175,000).
 
-Duplicate protection: same `idempotencyKey` → same order (`200`, `duplicate: true`); identical unpaid
-order (same customer, lounge, date, passengers) within 15 minutes → same order.
+Then the confirmation email is sent through Resend. **If the email fails, the order is rejected**
+(`502 errors.orderEmailFailed`) because there is no other record — the customer is told to retry.
 
-Response `201 { ok, orderCode, accessToken, emailStatus, duplicate }`. The customer's order page is
-`/order/{orderCode}?t={accessToken}` (the token is required; it is also in the confirmation email).
+Duplicates: the Order ID `CLV-YYYYMMDD-XXXXX` is derived (HMAC with `ORDER_SECRET`) from the browser's
+idempotency key, and the email is sent with `Idempotency-Key: <OrderID>-ORDER_CONFIRMATION`, so a
+double-click, refresh or retry gives the same Order ID and Resend does not send a second email.
+
+Response `201 { ok, orderCode, token }`. The order page is `/order/{orderCode}?d={token}`: `token` is the
+order encrypted with AES-256-GCM (key from `ORDER_SECRET`) — unreadable and tamper-proof without the
+secret. The same link is in the confirmation email.
 
 ### `POST /api/orders/{orderCode}/payment-proof`
-Multipart: `token`, `file` (JPG/PNG/WEBP/PDF ≤ 5 MB, type detected from magic bytes), `payerName?`,
-`note?`. Only allowed when the order is `PENDING_PAYMENT`; moves it to `PAYMENT_SUBMITTED` atomically.
-The same file cannot be submitted twice for an order (SHA-256 unique). **Uploading a proof never marks
-an order as paid** — an admin must verify it.
+Multipart: `d` (order token), `file` (JPG/PNG/WEBP/PDF ≤ 5 MB, type checked by magic bytes),
+`payerName?`, `note?`. Sends "Payment Proof Received – Airport Lounge Voucher – {OrderID}" to the customer
+with CC to both internal addresses and the proof **attached**. The same file for the same order is
+de-duplicated by the email provider for 24 h. Uploading never marks the order as paid.
 
-## Admin endpoints (session cookie required)
-| GET | `/api/admin/orders/export?q=&status=&from=&to=` | CSV (UTF-8 BOM, opens in Excel) of filtered orders |
-|---|---|---|
-| GET | `/api/admin/payments/{paymentId}/proof` | Streams an uploaded proof (sandboxed, no-store) |
-
-Other admin mutations (login, verify/reject payment, change status, resend email, manual lounges) are
-Next.js Server Actions in `src/app/admin/actions.ts`, each re-checking the admin session.
-
-## Cron
-`GET /api/cron/email-retry` with `Authorization: Bearer $CRON_SECRET` — retries `PENDING`/`FAILED`
-emails with exponential backoff (5, 10, 20, 40, 80 min…, max 6 attempts) and purges expired
-rate-limit rows. Scheduled in `vercel.json` every 15 minutes.
-
-## Order status workflow
-```
-PENDING_PAYMENT ──(customer uploads proof)──▶ PAYMENT_SUBMITTED
-PAYMENT_SUBMITTED ──(admin verifies)──▶ PAYMENT_VERIFIED ──▶ PROCESSING ──▶ COMPLETED
-PAYMENT_SUBMITTED ──(admin rejects)──▶ PENDING_PAYMENT (customer re-uploads)
-any non-final ──▶ CANCELLED
-```
-Emails: ORDER_CONFIRMATION (on creation), PAYMENT_VERIFIED, PAYMENT_REJECTED, ORDER_COMPLETED —
-each to the customer with **real CC** to `airportloungevoucher@gmail.com` and
-`jasatiketmurah@gmail.com` (`cc` field of the Resend API). One row per (order, type) prevents duplicate
-confirmations; Resend `Idempotency-Key` guards network retries.
+## Payment workflow (static QRIS, no database)
+1. Customer places order → confirmation email (status: Pending Payment) to customer + both CCs.
+2. Customer pays via QRIS and uploads proof → proof email with attachment (status: Payment Submitted).
+3. Staff check the QRIS merchant account for the exact amount, then reply to the customer by email /
+   WhatsApp with verification and the voucher. (Verified / Processing / Completed are handled by staff.)
 
 ---
 
@@ -90,36 +69,19 @@ confirmations; Resend `Idempotency-Key` guards network retries.
 
 ## Findings (November 2026)
 * Collinson (owner of LoungeKey) does **not** publish public LoungeKey API documentation.
-* **LoungeKey Pass** is Collinson's single-visit digital lounge voucher, distributed to commercial
-  partners via an **API, an Agent Web Portal, or a Storefront**. Access requires a commercial agreement
-  and credentials issued by Collinson.
-* `loungefinder.loungekey.com` is a consumer website, not a public API. This project does **not**
-  scrape it.
+* **LoungeKey Pass** is distributed to commercial partners via an **API, Agent Web Portal or
+  Storefront**; access requires an agreement and credentials from Collinson.
+* `loungefinder.loungekey.com` is a consumer website, not a public API — this project does not scrape it.
 
-Contact Collinson International (collinsongroup.com → LoungeKey Pass) to request partner API access,
-documentation, sandbox credentials, and confirmation that reselling single-entry vouchers under the
-JASA TIKET MURAH brand at the fixed prices is permitted under the agreement.
-
-## What is built
-`src/lib/lounges/` contains a provider abstraction:
-
-* `loungekey.ts` — REST adapter. Auth via `x-api-key` header (`LOUNGEKEY_API_KEY`) and/or OAuth2
-  client credentials (`LOUNGEKEY_TOKEN_URL`, `LOUNGEKEY_CLIENT_ID`, `LOUNGEKEY_CLIENT_SECRET`); 10 s
-  timeout; configurable paths `LOUNGEKEY_AIRPORTS_PATH` (`?q=`) and `LOUNGEKEY_LOUNGES_PATH`
-  (`?airport=&iata=`).
-* `normalize.ts` — tolerant field mapping (name, terminal, airside/location, opening hours, facilities,
-  images (https only), description, conditions, access info). Unknown fields → `null`.
-* `service.ts` — caches API results in the `Lounge` table (fresh 1 h; on API failure serves cache
-  < 24 h marked stale; lounges no longer returned are deactivated), and falls back to the seeded
-  airport reference table for airport autocomplete.
-* `LOUNGE_PROVIDER=database` — alternative while API access is pending: admins enter lounges in
-  `/admin/lounges`, copied from an authorized LoungeKey source (e.g. the Agent Web Portal).
+## What is built (`src/lib/lounges/`)
+* `loungekey.ts` — REST adapter: `x-api-key` and/or OAuth2 client-credentials auth, 10 s timeout,
+  configurable paths (`LOUNGEKEY_AIRPORTS_PATH ?q=`, `LOUNGEKEY_LOUNGES_PATH ?airport=&iata=`).
+* `normalize.ts` — tolerant field mapping; missing fields stay `null` → "Information unavailable".
+* `service.ts` — in-memory cache (1 h fresh, up to 24 h stale if the API is down), lounge ids
+  `<IATA>-<base64url(externalId)>`.
+* `LOUNGE_PROVIDER=file` — while API access is pending, list lounges copied from an authorized
+  LoungeKey source in `src/data/lounges.json` (format in `src/data/README.md`), commit and redeploy.
 
 ## Verification status
-**Not verified against a live LoungeKey API** — no credentials or documentation were available. Once
-received: set the env vars, adjust paths/auth and the field mapping in `normalize.ts`, call
-`/api/airports/SIN/lounges`, and confirm the cards match the official data.
-
-Note: the current flow treats lounge data as **information only**. If the LoungeKey Pass API also
-issues vouchers, the natural next step is to call its issuance endpoint when an admin moves an order
-to PROCESSING, and store the returned voucher/QR per passenger.
+**Not verified against a live LoungeKey API** — no credentials/docs available. Once received: set the env
+vars, adjust paths/auth and `normalize.ts`, and compare `/api/airports/SIN/lounges` with official data.
