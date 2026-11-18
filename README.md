@@ -33,7 +33,7 @@ docs/           documentation
 
 ## Requirements
 
-PHP **8.0+** (8.1–8.3 recommended) with `openssl`, `curl`, `mbstring`, `zlib` — all standard on cPanel.
+PHP **8.1+** (8.1–8.3) with `openssl`, `curl`, `mbstring`, `zlib` — all standard on cPanel.
 Choose the version in cPanel → **Select PHP Version** / **MultiPHP Manager**.
 
 ## Configuration (`app/config.php`)

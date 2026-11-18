@@ -59,6 +59,6 @@ used automatically if it exists.)
 * **Order fails with "confirmation email could not be sent"** → wrong SMTP settings. Check
   `storage/logs/app.log` (event `order_email_failed`) for the exact SMTP error. Try port 587 with
   `'secure' => 'tls'` if 465 is blocked.
-* **500 error** → `storage/logs/php-error.log`; usually PHP version < 8.0 or `config.php` syntax.
+* **500 error** → `storage/logs/php-error.log`; usually PHP version < 8.1 or `config.php` syntax.
 * **Upload says file too large** → raise `upload_max_filesize` / `post_max_size` (step 1).
 * **Emails in spam** → Email Deliverability: SPF + DKIM.

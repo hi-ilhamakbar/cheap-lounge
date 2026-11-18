@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Loaded by every page and API endpoint. No database, no Composer, no build step:
- * plain PHP 8.0+ with the openssl, curl and mbstring extensions (standard on cPanel).
+ * plain PHP 8.1+ with the openssl, curl and mbstring extensions (standard on cPanel).
  */
 
 define('APP_ROOT', __DIR__);
