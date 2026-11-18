@@ -10,6 +10,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Self-contained server in .next/standalone — easy to run on cPanel "Setup Node.js App" or any Node host.
+  output: "standalone",
   poweredByHeader: false,
   experimental: {
     serverActions: { bodySizeLimit: "1mb" },

@@ -7,7 +7,7 @@ import { getActiveLounge } from "./lounges/service";
 import { ALLOWED_PROOF_MIME, INTERNAL_CC_EMAILS, MAX_PROOF_BYTES } from "./business";
 import { deriveOrderCode, openOrder, orderSecret, sealOrder, type OrderRecord } from "./order-token";
 import { renderOrderEmail, type EmailKind, type EmailOrder } from "./email/templates";
-import { sendViaResend } from "./email/resend";
+import { sendEmail } from "./email/send";
 import type { CreateOrderInput } from "./validation";
 
 /**
@@ -75,7 +75,7 @@ async function sendOrderEmail(
 ) {
   const status = kind === "ORDER_CONFIRMATION" ? "PENDING_PAYMENT" : "PAYMENT_SUBMITTED";
   const { subject, html, text } = renderOrderEmail(kind, { ...toEmailOrder(order, token, status), payment: extra?.payment });
-  return sendViaResend({ to: order.customer.email, cc: ccRecipients(), subject, html, text, idempotencyKey, attachments: extra?.attachments });
+  return sendEmail({ to: order.customer.email, cc: ccRecipients(), subject, html, text, idempotencyKey, attachments: extra?.attachments });
 }
 
 export type CreateOrderResult = { orderCode: string; token: string };

@@ -8,7 +8,9 @@ payment, and automatic order emails.
 `jasatiketmurah@gmail.com` — those emails are the order records. Payment proofs are emailed as
 attachments. Staff verify payments and send vouchers by email / WhatsApp.
 
-**Stack:** Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Zod · Resend (email) · Vercel.
+**Stack:** Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Zod · Nodemailer (SMTP) or Resend.
+
+**Hosting:** any Node.js 20+ host — cPanel "Setup Node.js App" (see [docs/DEPLOY-CPANEL.md](docs/DEPLOY-CPANEL.md)) or Vercel. It is not a PHP site: uploading the source to `public_html` will not work.
 
 ## Features
 
@@ -46,11 +48,15 @@ Requirements: Node.js ≥ 20.9.
 ```bash
 git clone https://github.com/hi-ilhamakbar/cheap-lounge.git
 cd cheap-lounge
-cp .env.example .env.local      # fill in ORDER_SECRET, RESEND_API_KEY, EMAIL_FROM, lounge source
+cp .env.example .env.local      # fill in ORDER_SECRET, SMTP_* + EMAIL_FROM, lounge source
 npm install
 npm run dev                     # http://localhost:3000
 npm test
 ```
+
+## Deploy on cPanel
+
+See **[docs/DEPLOY-CPANEL.md](docs/DEPLOY-CPANEL.md)** (build locally with `npm run build:cpanel`, run as a Node.js app, secrets in cPanel environment variables).
 
 ## Deploy (Vercel)
 
@@ -67,7 +73,10 @@ npm test
 |---|---|---|
 | `APP_URL` | ✓ | Base URL used for the order link in emails |
 | `ORDER_SECRET` | ✓ | Encrypts order links, derives Order IDs (≥ 32 chars) |
-| `RESEND_API_KEY`, `EMAIL_FROM` | ✓ | Sending email (domain verified in Resend) |
+| `EMAIL_PROVIDER` | ✓ | `smtp` (your mailbox, e.g. cPanel) or `resend` |
+| `EMAIL_FROM` | ✓ | Sender address (must be the SMTP mailbox, or a Resend-verified domain) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | for smtp | Mail server login (cPanel → Email Accounts → Connect Devices) |
+| `RESEND_API_KEY` | for resend | Resend API key |
 | `EMAIL_REPLY_TO`, `EMAIL_EXTRA_CC` | optional | Reply-to, extra CCs (the two business CCs are hard-coded) |
 | `LOUNGE_PROVIDER` | ✓ | `loungekey` or `file` |
 | `LOUNGEKEY_*` | for `loungekey` | Partner API URL + credentials + paths |
@@ -86,6 +95,6 @@ npm test
 1. **LoungeKey API access** from Collinson (agreement, credentials, docs) — or use `LOUNGE_PROVIDER=file`
    with lounges copied from an authorized source. Until one is configured the site shows
    "lounge data unavailable". See `docs/API.md`.
-2. **Resend** account with a verified sending domain.
+2. **Email**: an SMTP mailbox (e.g. orders@cheaplounge.com in cPanel) or a Resend account.
 3. **Terms & Privacy** pages are drafts — have them reviewed (refund policy especially).
 4. Optional: licensed lounge photography; a dynamic QRIS gateway for automatic payment confirmation.
