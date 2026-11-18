@@ -1,0 +1,37 @@
+# JASA TIKET MURAH — Apache settings (cPanel)
+Options -Indexes
+DirectoryIndex index.php
+ErrorDocument 404 /404.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Force HTTPS (cPanel AutoSSL is active)
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  # Block private folders and files
+  RewriteRule ^(app|storage|vendor|dev|docs)(/|$) - [F,L]
+  RewriteRule (^|/)\.(?!well-known/) - [F,L]
+  RewriteRule \.(md|log|json|lock|sh|txt|dist|sample)$ - [F,L]
+</IfModule>
+
+# Fallback when mod_rewrite is unavailable
+<FilesMatch "\.(md|log|lock|sh|sample|dist)$">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  <FilesMatch "\.(css|js|svg|jpg|png|webp)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+</IfModule>
+
+# Payment proof uploads (5 MB max) — only effective where PHP runs as an Apache module;
+# otherwise set these in cPanel → Select PHP Version → Options (or MultiPHP INI Editor).
+<IfModule mod_php.c>
+  php_value upload_max_filesize 6M
+  php_value post_max_size 8M
+</IfModule>

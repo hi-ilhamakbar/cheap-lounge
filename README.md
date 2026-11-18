@@ -1,100 +1,93 @@
-# JASA TIKET MURAH — Airport Lounge Voucher
+# JASA TIKET MURAH — Airport Lounge Voucher website
 
-A bilingual (Bahasa Indonesia default / English) airport lounge voucher ordering website: airport search,
-lounge listings from an authorized LoungeKey source, multi-step booking, server-side pricing, QRIS
-payment, and automatic order emails.
+Bilingual (Bahasa Indonesia default / English) airport lounge voucher ordering site for
+**cheaplounge.com**. Plain **PHP 8** — upload the files to `public_html` on cPanel. No Node.js, no npm,
+no Composer, no database, no build step.
 
-**No database.** Each order is emailed to the customer with CC to `airportloungevoucher@gmail.com` and
-`jasatiketmurah@gmail.com` — those emails are the order records. Payment proofs are emailed as
-attachments. Staff verify payments and send vouchers by email / WhatsApp.
+* Airport search (name, city, IATA), lounge listings and details from an **authorized LoungeKey** source
+* 5-step booking: Lounge → Date (today…+90 days) → Contact → Passengers (dynamic adult/child names) → Review
+* Fixed prices: adult **Rp 200.000**, child under 12 **Rp 175.000** — recalculated on the server
+* "Single entry only" notice on homepage, pricing, booking form, payment page and every email
+* Payment by the original **QRIS** image (unmodified) + payment-proof upload
+* **Every order is emailed** (PHPMailer over SMTP) to the customer with real **CC** to
+  `airportloungevoucher@gmail.com` and `jasatiketmurah@gmail.com` — the email *is* the order record.
+  Payment proofs are emailed as attachments.
+* Floating WhatsApp button (+62 852-1300-9993) on every page
 
-**Stack:** Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Zod · Nodemailer (SMTP) or Resend.
+👉 **Installation on cPanel: see [docs/DEPLOY-CPANEL.md](docs/DEPLOY-CPANEL.md).**
 
-**Hosting:** any Node.js 20+ host — cPanel "Setup Node.js App" (see [docs/DEPLOY-CPANEL.md](docs/DEPLOY-CPANEL.md)) or Vercel. It is not a PHP site: uploading the source to `public_html` will not work.
+## Folder layout
 
-## Features
+```
+index.php airport.php lounge.php book.php order.php terms.php privacy.php track.php 404.php
+api/            airports.php · lounges.php · order.php · proof.php · health.php
+assets/         css/app.css (pre-built) · js/app.js · js/booking.js · img/
+qris/           qris-jasa-tiket-murah.jpg  (original file, byte-identical)
+app/            PRIVATE (blocked by .htaccess): bootstrap, config, lib/, lang/, templates/, data/
+storage/        PRIVATE, writable: cache, rate limits, sent-email markers, logs
+vendor/         PHPMailer 7.2.0 (LGPL-2.1)
+dev/            developer tools only (tests, CSS source) — not needed on the server
+docs/           documentation
+```
 
-| Area | What it does |
+## Requirements
+
+PHP **8.0+** (8.1–8.3 recommended) with `openssl`, `curl`, `mbstring`, `zlib` — all standard on cPanel.
+Choose the version in cPanel → **Select PHP Version** / **MultiPHP Manager**.
+
+## Configuration (`app/config.php`)
+
+Copy `app/config.sample.php` → `app/config.php` (or, safer, to `/home/USER/cheaplounge-config.php`
+outside `public_html`) and fill in:
+
+| Key | Purpose |
 |---|---|
-| Languages | ID (default) + EN, switcher in the header, remembered in a cookie; emails use the customer's language |
-| Airport search | Autocomplete by airport name, city, country or IATA code |
-| Lounges | Cards + detail page from the authorized source; "Information unavailable" for missing fields |
-| Booking | 5-step wizard with progress bar: Lounge → Date (today…+90 days) → Contact (WhatsApp +62 default, email) → Passengers (dynamic adult/child names) → Review + T&C |
-| Pricing | Adult IDR 200,000 · Child (<12) IDR 175,000 — recalculated on the server |
-| Single entry | Notice on homepage, pricing, booking form, payment page and every email |
-| Order email | "Airport Lounge Voucher Order Confirmation – CLV-YYYYMMDD-XXXXX" with all order details + payment instructions; real CC; no duplicates on refresh/retry |
-| Payment | Original QRIS image (unmodified), copyable amount, instructions, proof upload → emailed with attachment |
-| WhatsApp | Floating button on every page (hidden while the QR code is on screen) |
-| Security | Server validation/sanitisation, encrypted tamper-proof order links, rate limiting, secrets only in env, security headers |
+| `app_url` | `https://cheaplounge.com` |
+| `order_secret` | Long random string (≥ 32 chars). Encrypts order links; keep it unchanged |
+| `smtp.host / port / secure / username / password` | Your mailbox (cPanel → Email Accounts → Connect Devices) |
+| `email_from`, `email_from_name`, `email_reply_to` | Sender = the SMTP mailbox |
+| `email_extra_cc` | Optional extra CCs (the two business CCs are built in) |
+| `lounge_provider` | `file` (lounges in `app/data/lounges.json`) or `loungekey` (partner API) |
+| `loungekey.*` | Partner API URL + credentials, once issued by Collinson |
 
-## Project structure
+Check the setup at `https://cheaplounge.com/api/health.php` → `"ok": true`.
 
-```
-public/qris/                 # original QRIS image (byte-identical to the supplied file)
-src/app/(site)/              # pages: home, airports/[iata], lounges/[id], book, order/[orderCode], terms, privacy, track
-src/app/api/                 # route handlers (see docs/API.md)
-src/components/              # UI (booking wizard, search, cards, payment)
-src/data/airports.ts         # airport reference data (no lounge data)
-src/data/lounges.json        # only for LOUNGE_PROVIDER=file
-src/lib/                     # business rules, pricing, dates, validation, i18n, lounge providers, email, order links
-tests/                       # unit tests (node --test)
-docs/API.md                  # API + LoungeKey integration documentation
-```
+## How orders work (no database)
 
-## Install & run locally
+1. Customer submits the booking → server validates everything, recalculates the price, creates an
+   Order ID `CLV-YYYYMMDD-XXXXX` and **emails the order** (customer + both CCs).
+   If the email cannot be sent, the order is refused and the customer is asked to retry — nothing is lost.
+2. The customer is taken to the payment page (QRIS, exact amount, copy button, instructions). The link is
+   in the email too. It carries the order **encrypted** (AES-256-GCM) — unreadable and tamper-proof.
+3. Customer pays and uploads the proof → **emailed with the file attached** (customer + both CCs).
+4. Staff check the QRIS merchant account and reply by email/WhatsApp with confirmation and the voucher.
 
-Requirements: Node.js ≥ 20.9.
+Duplicates: a double-click, refresh or retry produces the same Order ID and **no second email**
+(sent emails are remembered in `storage/sent` for 24 h). The same proof file is also only sent once.
 
-```bash
-git clone https://github.com/hi-ilhamakbar/cheap-lounge.git
-cd cheap-lounge
-cp .env.example .env.local      # fill in ORDER_SECRET, SMTP_* + EMAIL_FROM, lounge source
-npm install
-npm run dev                     # http://localhost:3000
-npm test
-```
+Find orders in Gmail by searching the Order ID or `CLV-`.
 
-## Deploy on cPanel
+## Lounge data — important
 
-See **[docs/DEPLOY-CPANEL.md](docs/DEPLOY-CPANEL.md)** (build locally with `npm run build:cpanel`, run as a Node.js app, secrets in cPanel environment variables).
+Lounge information must come from an authorized LoungeKey source and is never invented.
+* **`file` mode (works now):** add lounges to `app/data/lounges.json` (format: `app/data/lounges.example.json`),
+  copied from an authorized LoungeKey source such as the LoungeKey Pass Agent Web Portal. Missing fields
+  show "Information unavailable". Empty file = "no lounges listed yet".
+* **`loungekey` mode:** Collinson does not publish public LoungeKey API documentation; access requires a
+  commercial agreement. The adapter (`app/lib/lounges.php`) is ready but **not verified against a live API**
+  — adjust auth/paths/field names when the documentation arrives. See [docs/API.md](docs/API.md).
 
-## Deploy (Vercel)
+## Security
 
-1. Import the GitHub repository in Vercel (framework: Next.js).
-2. Add the variables from `.env.example` (Project → Settings → Environment Variables).
-   `APP_URL` = your production URL; `ORDER_SECRET` = long random string (keep it stable).
-3. Deploy, then open `/api/health` — it should show `ok: true`.
-4. Place a test order and check that the customer address and **both** CC inboxes receive it, then upload
-   a test proof and check the attachment arrives.
+* Secrets only in `config.php` (git-ignored; `app/` is web-blocked) or outside `public_html`
+* Server-side validation & sanitisation, output escaping, magic-byte file checks (JPG/PNG/WEBP/PDF ≤ 5 MB)
+* Encrypted, tamper-proof order links; rate limiting (file-based); security headers; HTTPS redirect
+* `Options -Indexes` — folders are never listed
 
-## Environment variables
+## Development
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `APP_URL` | ✓ | Base URL used for the order link in emails |
-| `ORDER_SECRET` | ✓ | Encrypts order links, derives Order IDs (≥ 32 chars) |
-| `EMAIL_PROVIDER` | ✓ | `smtp` (your mailbox, e.g. cPanel) or `resend` |
-| `EMAIL_FROM` | ✓ | Sender address (must be the SMTP mailbox, or a Resend-verified domain) |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | for smtp | Mail server login (cPanel → Email Accounts → Connect Devices) |
-| `RESEND_API_KEY` | for resend | Resend API key |
-| `EMAIL_REPLY_TO`, `EMAIL_EXTRA_CC` | optional | Reply-to, extra CCs (the two business CCs are hard-coded) |
-| `LOUNGE_PROVIDER` | ✓ | `loungekey` or `file` |
-| `LOUNGEKEY_*` | for `loungekey` | Partner API URL + credentials + paths |
-
-## What changed by removing the database
-
-* No admin dashboard, order search, CSV export or stored statuses — the CC inboxes are the order log
-  (search them by Order ID; Gmail labels/filters on "CLV-" work well).
-* Payment verification, "processing" and "completed" are done by staff replying by email / WhatsApp.
-* If the confirmation email cannot be sent, the order is refused and the customer is asked to retry
-  (otherwise it would be lost).
-* Rate limiting is per server instance.
-
-## Remaining external requirements
-
-1. **LoungeKey API access** from Collinson (agreement, credentials, docs) — or use `LOUNGE_PROVIDER=file`
-   with lounges copied from an authorized source. Until one is configured the site shows
-   "lounge data unavailable". See `docs/API.md`.
-2. **Email**: an SMTP mailbox (e.g. orders@cheaplounge.com in cPanel) or a Resend account.
-3. **Terms & Privacy** pages are drafts — have them reviewed (refund policy especially).
-4. Optional: licensed lounge photography; a dynamic QRIS gateway for automatic payment confirmation.
+* Tests: `php dev/tests/run.php` (61 checks: pricing, dates, phone, validation, Order IDs, encryption,
+  airport search, lounge normaliser, email content, translations).
+* CSS: classes are Tailwind; `assets/css/app.css` is pre-built and committed. To rebuild after changing
+  classes: `cd dev && npm i tailwindcss@4 && node build-css.mjs` (developer machine only).
+* Text: `app/lang/id.php` and `app/lang/en.php` (keep the same keys).

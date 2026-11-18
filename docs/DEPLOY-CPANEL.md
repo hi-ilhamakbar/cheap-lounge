@@ -1,72 +1,69 @@
-# Deploying on cPanel (cheaplounge.com)
+# Install on cPanel (cheaplounge.com) — no Node.js, no npm
 
-This is a **Node.js (Next.js)** application, not a PHP site. Copying the source files into
-`public_html` only makes Apache list them ("Index of /") — nothing runs. It must run as a Node.js app.
+## 0. Clean up
+In **File Manager → public_html**, delete the old Next.js files you uploaded earlier
+(`src/`, `public/`, `tests/`, `docs/`, `package.json`, `next.config.ts`, `tsconfig.json`, `eslint.config.mjs`,
+`postcss.config.mjs`, `LICENSE`). **Do not touch** other sites' folders (e.g. `privatejetexecutive…`).
 
-> ⚠️ First, **delete the copied source files from `public_html`** (LICENSE, docs/, src/, public/,
-> tests/, package.json, *.config.*, tsconfig.json). They are publicly browsable right now.
-> Don't touch other sites' folders (e.g. `privatejetexecutive…`).
+## 1. PHP version
+cPanel → **Select PHP Version** (or MultiPHP Manager) → choose **PHP 8.1, 8.2 or 8.3**.
+Make sure the extensions **openssl, curl, mbstring, zlib** are ticked (they usually are).
+Under **Options**: `upload_max_filesize` ≥ 6M and `post_max_size` ≥ 8M (for 5 MB payment proofs).
 
-## Requirement: "Setup Node.js App" in cPanel
-Look in cPanel → **Software → Setup Node.js App** (CloudLinux / Passenger). Node.js **20 or newer** is
-needed. If your plan doesn't have it, ask the host to enable it, or host on Vercel (free tier) and point
-the domain's DNS there (see README).
+## 2. Upload the files
+Download the repository as ZIP (GitHub → Code → Download ZIP). In File Manager open **public_html**,
+upload the ZIP, **Extract**, then move everything from the extracted `cheap-lounge-main/` folder up into
+`public_html` (select all → Move → `/public_html`). Include the hidden files `.htaccess` and `.user.ini`
+(File Manager → Settings → *Show Hidden Files*).
 
-## 1. Build on your computer
-Shared hosting usually doesn't have enough memory to build Next.js, so build locally
-(Node.js 20+ from nodejs.org):
+You can skip `dev/` and `docs/` — they are not needed on the server (and are blocked anyway).
 
-```bash
-cd cheap-lounge
-npm install
-npm run build:cpanel
+Make sure `storage/` and its subfolders are writable (permissions **755**, the default, is fine on cPanel).
+
+## 3. Create the sending mailbox
+cPanel → **Email Accounts** → Create → `orders@cheaplounge.com` (strong password).
+Click **Connect Devices** to see the SMTP settings — typically:
+outgoing server `mail.cheaplounge.com`, port **465**, SSL/TLS.
+
+Also open cPanel → **Email Deliverability** and repair/enable **SPF and DKIM** so the order emails don't
+land in spam.
+
+## 4. Configure
+In File Manager, open `public_html/app/`, copy `config.sample.php` → `config.php`, **Edit** it:
+
+```php
+'app_url' => 'https://cheaplounge.com',
+'order_secret' => 'PASTE-A-LONG-RANDOM-STRING-40-CHARS-OR-MORE',
+'smtp' => [
+    'host' => 'mail.cheaplounge.com',
+    'port' => 465,
+    'secure' => 'ssl',
+    'username' => 'orders@cheaplounge.com',
+    'password' => 'THE-MAILBOX-PASSWORD',
+],
+'email_from' => 'orders@cheaplounge.com',
+'lounge_provider' => 'file',
 ```
-This creates a `cpanel-upload/` folder (server.js, .next/, node_modules/, public/). Zip its **contents**.
 
-## 2. Create the Node.js app in cPanel
-Setup Node.js App → **Create Application**:
-- Node.js version: **20.x** (or newer)
-- Application mode: **Production**
-- Application root: `cheaplounge` (a folder **outside** public_html, e.g. `/home/USER/cheaplounge`)
-- Application URL: `cheaplounge.com`
-- Application startup file: `server.js`
+(Safer: put this file at `/home/chee7661/cheaplounge-config.php`, one level above public_html — it is
+used automatically if it exists.)
 
-Click **Create**.
+## 5. Add lounges
+Edit `public_html/app/data/lounges.json` with lounges copied from an authorized LoungeKey source
+(format in `lounges.example.json`). Until you add any, airports show "no lounges listed yet".
 
-## 3. Upload
-File Manager → open `/home/USER/cheaplounge` → Upload the zip → **Extract** there.
-You should see `server.js`, `.next/`, `node_modules/`, `public/` directly inside that folder.
-(Do not run "Run NPM Install" — dependencies are already bundled.)
+## 6. Check
+1. `https://cheaplounge.com/api/health.php` → `"ok": true` (shows which part is missing if not).
+2. Open `https://cheaplounge.com` → search an airport → choose a lounge → place a **test order** with
+   your own email. Confirm the customer address **and both Gmail CCs** receive
+   "Airport Lounge Voucher Order Confirmation – CLV-…".
+3. On the payment page, upload a test image → the "Payment Proof Received" email arrives with the
+   attachment.
 
-## 4. Environment variables (secrets go HERE, not in files)
-In Setup Node.js App → your app → **Environment variables → Add variable**:
-
-| Name | Value |
-|---|---|
-| `NODE_ENV` | `production` |
-| `APP_URL` | `https://cheaplounge.com` |
-| `ORDER_SECRET` | long random string (≥ 32 chars) — keep it unchanged |
-| `EMAIL_PROVIDER` | `smtp` |
-| `EMAIL_FROM` | `JASA TIKET MURAH <orders@cheaplounge.com>` |
-| `EMAIL_REPLY_TO` | `jasatiketmurah@gmail.com` |
-| `SMTP_HOST` | `mail.cheaplounge.com` |
-| `SMTP_PORT` | `465` |
-| `SMTP_SECURE` | `true` |
-| `SMTP_USER` | `orders@cheaplounge.com` |
-| `SMTP_PASS` | that mailbox's password |
-| `LOUNGE_PROVIDER` | `loungekey` (with `LOUNGEKEY_*`) or `file` |
-
-SMTP values: cPanel → **Email Accounts** → create `orders@cheaplounge.com` → **Connect Devices** shows
-the outgoing server and port. `EMAIL_FROM` must be that same mailbox. The two CC addresses
-(airportloungevoucher@gmail.com, jasatiketmurah@gmail.com) are built in.
-
-Save, then click **Restart**.
-
-## 5. Check
-- `https://cheaplounge.com` shows the site.
-- `https://cheaplounge.com/api/health` → `"ok": true`, `"email": "smtp"`.
-- Place a test order: the customer address **and both Gmail CCs** must receive it. Upload a test proof
-  and check the attachment. If mail lands in spam, add SPF/DKIM in cPanel → **Email Deliverability**.
-
-## Updating the site
-Build again locally (`npm run build:cpanel`), upload/extract over the app folder, click **Restart**.
+## Troubleshooting
+* **Order fails with "confirmation email could not be sent"** → wrong SMTP settings. Check
+  `storage/logs/app.log` (event `order_email_failed`) for the exact SMTP error. Try port 587 with
+  `'secure' => 'tls'` if 465 is blocked.
+* **500 error** → `storage/logs/php-error.log`; usually PHP version < 8.0 or `config.php` syntax.
+* **Upload says file too large** → raise `upload_max_filesize` / `post_max_size` (step 1).
+* **Emails in spam** → Email Deliverability: SPF + DKIM.

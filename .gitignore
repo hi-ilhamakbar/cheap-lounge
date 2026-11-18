@@ -1,18 +1,15 @@
+# secrets — never commit
+app/config.php
+cheaplounge-config.php
+.env*
+
+# runtime data
+storage/**
+!storage/.htaccess
+!storage/*/
+!storage/*/.gitkeep
+
+# local tooling
 node_modules/
-.next/
-out/
-build/
-coverage/
-*.tsbuildinfo
-next-env.d.ts
-
-# env files — never commit secrets
-.env
-.env.*
-!.env.example
-
-.vercel
+dev/node_modules/
 .DS_Store
-npm-debug.log*
-backups/
-cpanel-upload/
