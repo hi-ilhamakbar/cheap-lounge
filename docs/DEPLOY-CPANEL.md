@@ -62,3 +62,16 @@ used automatically if it exists.)
 * **500 error** → `storage/logs/php-error.log`; usually PHP version < 8.1 or `config.php` syntax.
 * **Upload says file too large** → raise `upload_max_filesize` / `post_max_size` (step 1).
 * **Emails in spam** → Email Deliverability: SPF + DKIM.
+
+## Running on a subdomain (e.g. id.cheaplounge.com)
+No code changes are needed — all links are relative; only the config changes.
+1. cPanel → **Domains** → **Create A New Domain** → `id.cheaplounge.com`. Untick "Share document root"
+   and use a folder **outside** public_html, e.g. `/home/USER/id.cheaplounge.com`.
+2. Move/upload the site files into that folder (including `.htaccess` and `.user.ini`).
+3. In `app/config.php` set `'app_url' => 'https://id.cheaplounge.com'` (used for the order link in emails).
+   SMTP stays `mail.cheaplounge.com` with the same mailbox.
+4. cPanel → **SSL/TLS Status** → **Run AutoSSL** so the subdomain gets HTTPS (the site forces HTTPS).
+5. Optional: redirect the main domain — cPanel → **Redirects** → `cheaplounge.com` → `https://id.cheaplounge.com` (301).
+6. Check `https://id.cheaplounge.com/api/health.php`.
+A config file outside the web folder is looked for one level above it
+(`/home/USER/cheaplounge-config.php` for both layouts).
