@@ -10,8 +10,9 @@ no Composer, no database, no build step.
 * Fixed prices: adult **Rp 200.000**, child under 12 **Rp 175.000** — recalculated on the server
 * "Single entry only" notice on homepage, pricing, booking form, payment page and every email
 * Payment by the original **QRIS** image (unmodified) + payment-proof upload
-* **Every order is emailed** (PHPMailer over SMTP) to the customer with real **CC** to
-  `airportloungevoucher@gmail.com` and `jasatiketmurah@gmail.com` — the email *is* the order record.
+* **Every order is emailed** (PHPMailer over SMTP) to the customer, with a copy to
+  `airportloungevoucher@gmail.com` and `jasatiketmurah@gmail.com` — as **CC** or hidden **BCC**
+  (`'internal_copy' => 'bcc'`). The email *is* the order record.
   Payment proofs are emailed as attachments.
 * Floating WhatsApp button (+62 852-1300-9993) on every page
 
@@ -47,7 +48,8 @@ outside `public_html`) and fill in:
 | `order_secret` | Long random string (≥ 32 chars). Encrypts order links; keep it unchanged |
 | `smtp.host / port / secure / username / password` | Your mailbox (cPanel → Email Accounts → Connect Devices) |
 | `email_from`, `email_from_name`, `email_reply_to` | Sender = the SMTP mailbox |
-| `email_extra_cc` | Optional extra CCs (the two business CCs are built in) |
+| `internal_copy` | `'cc'` (customer sees the two internal Gmail addresses) or `'bcc'` (hidden, also removed from the site footer) |
+| `email_extra_cc`, `email_extra_bcc` | Optional extra visible / hidden copies |
 
 Check the setup at `https://cheaplounge.com/api/health.php` → `"ok": true`.
 

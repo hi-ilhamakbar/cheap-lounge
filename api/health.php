@@ -9,6 +9,7 @@ $checks = [
     'config' => is_array($GLOBALS['APP_CONFIG']) && $GLOBALS['APP_CONFIG'] !== [] ? 'loaded' : 'missing',
     'orderSecret' => strlen((string) cfg('order_secret', '')) >= 32 ? 'configured' : 'missing',
     'email' => smtp_configured() ? 'smtp' : 'missing',
+    'internalCopy' => internal_copy_mode(),
     'storageWritable' => is_writable(STORAGE),
 ];
 $ok = $checks['orderSecret'] === 'configured' && $checks['email'] === 'smtp'

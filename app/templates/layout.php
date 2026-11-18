@@ -94,7 +94,8 @@ function render_footer(): void
         . $li(url('track.php'), t('footer.trackOrder')) . $li(url('terms.php'), t('footer.terms')) . $li(url('privacy.php'), t('footer.privacy')) . '</ul></div>'
         . '<div><h2 class="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-white">' . e(t('footer.contact')) . '</h2><ul class="space-y-2.5 text-sm">'
         . '<li><a class="hover:text-white" href="' . e($wa) . '" target="_blank" rel="noopener noreferrer">WhatsApp ' . WHATSAPP_DISPLAY . '</a></li>';
-    foreach (INTERNAL_CC_EMAILS as $m) echo '<li><a class="break-all hover:text-white" href="mailto:' . e($m) . '">' . e($m) . '</a></li>';
+    // With internal_copy = 'bcc' the internal Gmail addresses stay private (not shown on the site either).
+    if (internal_copy_mode() === 'cc') foreach (INTERNAL_CC_EMAILS as $m) echo '<li><a class="break-all hover:text-white" href="mailto:' . e($m) . '">' . e($m) . '</a></li>';
     echo '</ul></div></div><div class="border-t border-white/10"><div class="container-page flex flex-col gap-2 py-6 text-xs text-slate-400 md:flex-row md:items-center md:justify-between">'
         . '<p>© ' . $year . ' JASA TIKET MURAH. ' . e(t('footer.rights')) . '</p><p class="max-w-xl md:text-right">' . e(t('footer.disclaimer')) . '</p></div></div></footer>';
 }

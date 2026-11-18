@@ -78,7 +78,12 @@ $m2 = render_order_email('PAYMENT_SUBMITTED', ['lang' => 'en', 'status' => 'PAYM
 $m3 = render_order_email('ORDER_CONFIRMATION', ['lang' => 'en', 'lounge' => null] + $o);
 check('no lounge → "Chosen by our team"', str_contains($m3['text'], 'Preferred lounge: Chosen by our team'));
 check('proof email (en)', str_contains($m2['subject'], 'Payment Proof Received') && str_contains($m2['text'], 'p.jpg (attached)') && !str_contains($m2['text'], 'Payment instructions'));
-check('CC always includes both internal addresses', array_slice(cc_recipients(), 0, 2) === INTERNAL_CC_EMAILS);
+check('default: internal addresses as CC', copy_recipients() === ['cc' => INTERNAL_CC_EMAILS, 'bcc' => []]);
+$GLOBALS['APP_CONFIG']['internal_copy'] = 'bcc';
+$GLOBALS['APP_CONFIG']['email_extra_cc'] = 'jasatiketmurah@gmail.com';
+$GLOBALS['APP_CONFIG']['email_extra_bcc'] = ['ops@example.com'];
+check('bcc mode: internal addresses hidden, never also in CC', copy_recipients() === ['cc' => [], 'bcc' => [...INTERNAL_CC_EMAILS, 'ops@example.com']]);
+unset($GLOBALS['APP_CONFIG']['internal_copy'], $GLOBALS['APP_CONFIG']['email_extra_cc'], $GLOBALS['APP_CONFIG']['email_extra_bcc']);
 check('file type sniffing', sniff_mime("\xFF\xD8\xFF\xE0") === 'image/jpeg' && sniff_mime('%PDF-1.7') === 'application/pdf' && sniff_mime('hello') === null);
 
 // Translations: same keys in both languages

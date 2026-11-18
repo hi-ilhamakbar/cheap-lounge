@@ -12,10 +12,32 @@ function smtp_configured(): bool
     return cfg('smtp.host', '') !== '' && cfg('smtp.username', '') !== '' && cfg('smtp.password', '') !== '' && cfg('email_from', '') !== '';
 }
 
-function cc_recipients(): array
+/** 'bcc' (hidden from the customer) or 'cc' (visible). Set with 'internal_copy' in config.php. */
+function internal_copy_mode(): string
 {
-    $extra = array_filter(array_map('strtolower', (array) cfg('email_extra_cc', [])), fn ($x) => filter_var($x, FILTER_VALIDATE_EMAIL));
-    return array_values(array_unique([...INTERNAL_CC_EMAILS, ...$extra]));
+    return strtolower((string) cfg('internal_copy', 'cc')) === 'bcc' ? 'bcc' : 'cc';
+}
+
+function clean_email_list(mixed $v): array
+{
+    return array_values(array_filter(array_map(fn ($x) => strtolower(trim((string) $x)), (array) $v), fn ($x) => filter_var($x, FILTER_VALIDATE_EMAIL)));
+}
+
+/**
+ * Who gets a copy of every order email. The two internal addresses ALWAYS receive one — as CC or,
+ * with 'internal_copy' => 'bcc', as BCC so the customer cannot see them.
+ * @return array{cc: string[], bcc: string[]}
+ */
+function copy_recipients(): array
+{
+    $mode = internal_copy_mode();
+    $cc = clean_email_list(cfg('email_extra_cc', []));
+    $bcc = clean_email_list(cfg('email_extra_bcc', []));
+    if ($mode === 'bcc') $bcc = [...INTERNAL_CC_EMAILS, ...$bcc];
+    else $cc = [...INTERNAL_CC_EMAILS, ...$cc];
+    $bcc = array_values(array_unique($bcc));
+    $cc = array_values(array_diff(array_unique($cc), $bcc)); // never both CC and BCC
+    return ['cc' => $cc, 'bcc' => $bcc];
 }
 
 /**
@@ -56,7 +78,9 @@ function send_email(string $to, string $subject, string $html, string $text, str
         $m->setFrom((string) cfg('email_from'), (string) cfg('email_from_name', BRAND_NAME));
         if (cfg('email_reply_to')) $m->addReplyTo((string) cfg('email_reply_to'));
         $m->addAddress($to);
-        foreach (cc_recipients() as $cc) $m->addCC($cc);
+        $copies = copy_recipients();
+        foreach ($copies['cc'] as $cc) $m->addCC($cc);
+        foreach ($copies['bcc'] as $bcc) $m->addBCC($bcc); // SMTP envelope only — no Bcc header is sent
         $m->Subject = $subject;
         $m->isHTML(true);
         $m->Body = $html;

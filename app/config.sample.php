@@ -28,7 +28,13 @@ return [
     ],
     'email_from'      => 'orders@cheaplounge.com',     // must be the SMTP mailbox above
     'email_from_name' => 'JASA TIKET MURAH',
-    'email_reply_to'  => 'jasatiketmurah@gmail.com',
-    // airportloungevoucher@gmail.com and jasatiketmurah@gmail.com are ALWAYS CC'd (built in).
-    'email_extra_cc'  => [],
+    // Where customer replies go. NOTE: the customer sees this address when replying.
+    'email_reply_to'  => '',
+
+    // airportloungevoucher@gmail.com and jasatiketmurah@gmail.com ALWAYS get a copy of every order email.
+    //   'cc'  → visible to the customer
+    //   'bcc' → hidden from the customer (also hidden from the website footer)
+    'internal_copy'   => 'bcc',
+    'email_extra_cc'  => [],   // extra visible copies, e.g. ['ops@cheaplounge.com']
+    'email_extra_bcc' => [],   // extra hidden copies
 ];
