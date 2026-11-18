@@ -6,22 +6,22 @@
   var I = window.I18N, LANG = window.LANG, CL = window.CL, esc = CL.esc, tk = CL.tk;
   var B = I.booking;
   var PRICE = { adult: 200000, child: 175000 }, MAXQ = 10, WINDOW = 90;
-  var DRAFT = "clv-booking-draft-v2";
-  var STEP_FIELDS = [["airportIata", "loungeId"], ["visitDate"], ["whatsapp", "email", "customerName"], ["adultQty", "childQty", "adultNames", "childNames"], ["acceptTerms"]];
+  var DRAFT = "clv-booking-draft-v3";
+  var STEP_FIELDS = [["airport", "lounge"], ["visitDate"], ["whatsapp", "email", "customerName"], ["adultQty", "childQty", "adultNames", "childNames"], ["acceptTerms"]];
 
   var initial = JSON.parse(root.getAttribute("data-initial") || "null");
   var S = {
-    airport: initial ? initial.airport : null, lounge: initial ? initial.lounge : null,
+    airport: initial ? initial.airport : "", lounge: "",
     visitDate: "", customerName: "", whatsapp: "+62 ", email: "",
     adultQty: 1, childQty: 0, adultNames: [""], childNames: [], acceptTerms: false,
   };
-  var step = 0, lounges = null, loungeState = "idle", submitting = false, idem = null;
+  var step = 0, submitting = false, idem = null;
 
   try {
     var d = JSON.parse(sessionStorage.getItem(DRAFT) || "null");
     if (d) {
       for (var k in S) if (k in d && k !== "acceptTerms") S[k] = d[k];
-      if (initial) { S.airport = initial.airport; S.lounge = initial.lounge; }
+      if (initial) S.airport = initial.airport; // text typed on the homepage wins
     }
   } catch (e) {}
   function save() { try { sessionStorage.setItem(DRAFT, JSON.stringify(S)); } catch (e) {} }
@@ -85,56 +85,11 @@
     $("[data-submit]").classList.toggle("hidden", step !== 4);
   }
 
-  function renderAirport() {
-    var el = $("[data-airport-display]");
-    if (S.airport) {
-      el.innerHTML = "<strong>" + esc(S.airport.name) + "</strong> (" + esc(S.airport.iata) + ") · " + esc([S.airport.city, S.airport.country].filter(Boolean).join(", "));
-      el.classList.remove("hidden");
-    } else el.classList.add("hidden");
-  }
-
-  function loungeMeta(l) {
-    return '<span class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600"><span>' + esc(l.terminal ? I.lounge.terminal + " " + l.terminal : I.lounge.infoUnavailable) + "</span><span>" + esc(l.openingHours ? l.openingHours.split("\n")[0] : I.lounge.infoUnavailable) + "</span></span>";
-  }
   function noticeHtml(text, tone) {
     var cls = tone === "error" ? "border-accent-600/25 bg-accent-50 text-accent-700" : tone === "warn" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-navy-100 bg-navy-50 text-navy-800";
     return '<div role="' + (tone === "error" ? "alert" : "status") + '" class="flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm ' + cls + '"><div>' + esc(text) + "</div></div>";
   }
-  function renderLounges() {
-    var area = $("[data-lounge-area]");
-    var h = "";
-    if (loungeState === "loading") h = '<p class="flex items-center gap-2 text-sm text-slate-500" role="status">' + CL.SPIN.replace("size-5", "size-4") + " " + esc(B.loadingLounges) + "</p>";
-    else if (loungeState === "error") h = noticeHtml(I.lounge.error, "error");
-    else if (loungeState === "unavailable") h = noticeHtml(I.lounge.unavailable, "warn");
-    else if (lounges && !lounges.length) h = noticeHtml(I.lounge.none, "warn");
-    else if (lounges) {
-      h = '<div role="radiogroup" aria-label="' + esc(B.chooseLounge) + '" class="grid gap-3">' + lounges.map(function (l, i) {
-        var sel = S.lounge && S.lounge.id === l.id;
-        return '<button type="button" role="radio" aria-checked="' + sel + '" data-li="' + i + '" class="rounded-xl border-2 p-4 text-left transition ' + (sel ? "border-navy-900 bg-navy-50" : "border-navy-100 hover:border-navy-700/40") + '"><span class="block font-semibold">' + esc(l.name) + "</span>" + loungeMeta(l) + "</button>";
-      }).join("") + "</div>";
-    } else if (S.lounge) h = '<div class="rounded-xl border-2 border-navy-900 p-4"><p class="font-semibold">' + esc(S.lounge.name) + "</p>" + loungeMeta(S.lounge) + "</div>";
-    else h = '<p class="text-sm text-slate-500">' + esc(B.noLounge) + "</p>";
-    area.innerHTML = h;
-    $$("[data-li]", area).forEach(function (b) {
-      b.addEventListener("click", function () { S.lounge = lounges[+b.getAttribute("data-li")]; save(); renderLounges(); renderSide(); });
-    });
-  }
-
-  function loadLounges(a) {
-    S.airport = a;
-    if (S.lounge && S.lounge.airportIata !== a.iata) S.lounge = null;
-    save(); renderAirport(); renderSide();
-    lounges = null; loungeState = "loading"; renderLounges();
-    fetch(CL.BASE + "/api/lounges.php?iata=" + encodeURIComponent(a.iata))
-      .then(function (r) { return r.json().then(function (d) { return { r: r, d: d }; }); })
-      .then(function (x) {
-        if (x.r.status === 503 || x.d.status === "not_configured") loungeState = "unavailable";
-        else if (!x.r.ok || !x.d.ok) loungeState = "error";
-        else { lounges = x.d.lounges; loungeState = "idle"; }
-        renderLounges();
-      })
-      .catch(function () { loungeState = "error"; renderLounges(); });
-  }
+  function clean(v) { return String(v || "").replace(/\s+/g, " ").trim(); }
 
   function renderNames() {
     ["adult", "child"].forEach(function (kind) {
@@ -179,8 +134,8 @@
     return h;
   }
   function renderSide() {
-    $("[data-side-lounge]").textContent = S.lounge ? S.lounge.name : "—";
-    $("[data-side-airport]").textContent = S.airport ? S.airport.name + " (" + S.airport.iata + ")" : "—";
+    $("[data-side-airport]").textContent = clean(S.airport) || "—";
+    $("[data-side-lounge]").textContent = clean(S.lounge) || (clean(S.airport) ? I.lounge.chosenByTeam : "—");
     var sd = $("[data-side-date]");
     sd.textContent = S.visitDate && validISO(S.visitDate) ? visitLabel(S.visitDate) : "";
     sd.classList.toggle("hidden", !sd.textContent);
@@ -196,7 +151,7 @@
     S.adultNames.forEach(function (n, i) { pax += row(fmt(B.adultN, { n: i + 1 }).split(" – ")[0], n.trim()); });
     S.childNames.forEach(function (n, i) { pax += row(fmt(B.childN, { n: i + 1 }).split(" – ")[0], n.trim()); });
     $("[data-summary]").innerHTML =
-      block(B.steps[0], 0, row(B.airport, S.airport.name + " (" + S.airport.iata + ")") + row(B.lounge, S.lounge.name) + row(I.lounge.terminal, S.lounge.terminal || I.lounge.infoUnavailable)) +
+      block(B.steps[0], 0, row(B.airport, clean(S.airport)) + row(B.lounge, clean(S.lounge) || I.lounge.chosenByTeam)) +
       block(B.steps[1], 1, row(B.visitDate, visitLabel(S.visitDate))) +
       block(B.contact, 2, (S.customerName.trim() ? row(B.customerName.replace(/ \(.*\)$/, ""), S.customerName.trim()) : "") + row(B.whatsapp, normalizeWa(S.whatsapp) || S.whatsapp) + row(B.email, S.email.trim().toLowerCase())) +
       block(B.passengers, 3, pax);
@@ -223,7 +178,11 @@
   }
   function validate(s) {
     var e = {};
-    if (s === 0) { if (!S.airport) e.airportIata = "errors.airportRequired"; if (!S.lounge) e.loungeId = "errors.loungeRequired"; }
+    if (s === 0) {
+      var ap = clean(S.airport);
+      if (ap.length < 2) e.airport = "errors.airportRequired"; else if (ap.length > 120) e.airport = "errors.airportTooLong";
+      if (clean(S.lounge).length > 150) e.lounge = "errors.loungeTooLong";
+    }
     if (s === 1) { if (!S.visitDate) e.visitDate = "errors.dateRequired"; else if (!inWindow(S.visitDate)) e.visitDate = "errors.dateOutOfRange"; }
     if (s === 2) {
       if (!S.whatsapp.replace(/^\+62\s*$/, "").trim()) e.whatsapp = "errors.whatsappRequired";
@@ -259,7 +218,7 @@
     }
     var payload = {
       language: LANG, customerName: S.customerName.trim() || undefined, email: S.email, whatsapp: S.whatsapp,
-      airportIata: S.airport.iata, loungeId: S.lounge.id, visitDate: S.visitDate,
+      airport: clean(S.airport), lounge: clean(S.lounge) || undefined, visitDate: S.visitDate,
       adultQty: S.adultQty, childQty: S.childQty, adultNames: S.adultNames, childNames: S.childNames, acceptTerms: S.acceptTerms,
     };
     // Same payload re-submitted (double click, refresh, network retry) → same key → same order, one email.
@@ -284,7 +243,6 @@
         formError(tk(x.d.error || "errors.server"));
         var first = -1;
         for (var i = 0; i < STEP_FIELDS.length && first < 0; i++) for (var k in f) if (STEP_FIELDS[i].indexOf(k.split(".")[0]) >= 0) { first = i; break; }
-        if (f.loungeId) { S.lounge = null; save(); renderLounges(); renderSide(); }
         if (first >= 0) { step = first; renderProgress(); if (first === 4) renderSummary(); }
         showErrors(f);
         finish();
@@ -298,10 +256,10 @@
   dateInput.min = today; dateInput.max = maxDate; dateInput.value = S.visitDate;
   function datePreview() { $("[data-date-preview]").textContent = inWindow(S.visitDate) ? visitLabel(S.visitDate) : ""; }
   dateInput.addEventListener("input", function () { S.visitDate = dateInput.value; save(); datePreview(); renderSide(); });
-  ["whatsapp", "email", "customerName"].forEach(function (f) {
+  ["airport", "lounge", "whatsapp", "email", "customerName"].forEach(function (f) {
     var inp = $("#" + f);
     inp.value = S[f];
-    inp.addEventListener("input", function () { S[f] = inp.value; save(); });
+    inp.addEventListener("input", function () { S[f] = inp.value; save(); if (f === "airport" || f === "lounge") renderSide(); });
   });
   var terms = $('[data-field="acceptTerms"]');
   terms.addEventListener("change", function () { S.acceptTerms = terms.checked; $("[data-submit]").disabled = submitting || !terms.checked; });
@@ -309,7 +267,6 @@
     $('[data-qty="' + kind + '"] [data-dec]').addEventListener("click", function () { setQty(kind, S[kind + "Qty"] - 1); });
     $('[data-qty="' + kind + '"] [data-inc]').addEventListener("click", function () { setQty(kind, S[kind + "Qty"] + 1); });
   });
-  root.addEventListener("airport:select", function (e) { loadLounges(e.detail); });
   $("[data-next]").addEventListener("click", function () {
     var e = validate(step);
     showErrors(e);
@@ -319,5 +276,6 @@
   $("[data-back]").addEventListener("click", function () { go(Math.max(step - 1, 0)); });
   $("[data-submit]").addEventListener("click", submit);
 
-  renderAirport(); renderLounges(); renderNames(); datePreview(); renderSide(); renderProgress();
+  renderNames(); datePreview(); renderSide(); renderProgress();
+  if (!clean(S.airport)) $("#airport").focus(); else if (!clean(S.lounge)) $("#lounge").focus();
 })();

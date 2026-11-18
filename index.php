@@ -20,7 +20,7 @@ page_start();
       <span class="badge border border-navy-100 bg-white text-navy-700 shadow-sm"><span class="size-1.5 rounded-full bg-accent-600"></span> <?= e(t('hero.badge')) ?></span>
       <h1 class="heading-display mt-6 text-4xl leading-[1.08] sm:text-5xl lg:text-[3.6rem]"><?= e(t('hero.title')) ?></h1>
       <p class="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg"><?= e(t('hero.subtitle')) ?></p>
-      <div class="mt-8 max-w-xl"><?= airport_search('lg') ?></div>
+      <div class="mt-8 max-w-xl"><?= lounge_search('lg') ?></div>
       <p class="mt-4 text-sm text-slate-500"><?= e(t('hero.fromPrice')) ?> <strong class="text-navy-900"><?= e(format_idr(PRICE_CHILD_IDR, $lang)) ?></strong> <?= e(t('hero.perPerson')) ?> · <?= e(t('singleEntry.short')) ?></p>
     </div>
     <div aria-hidden="true" class="relative hidden lg:block">
@@ -68,7 +68,7 @@ page_start();
     <p class="mt-3 max-w-xl text-slate-600"><?= e(t('popular.subtitle')) ?></p>
     <ul class="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">
       <?php foreach ($popular as [$iata, $city, $name]): ?>
-      <li><a href="<?= e(url("airport.php?iata=$iata")) ?>" class="group block overflow-hidden rounded-2xl border border-navy-100 bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:border-navy-700/20 hover:shadow-lift">
+      <li><a href="<?= e(url('book.php?q=' . rawurlencode("$name ($iata)"))) ?>" class="group block overflow-hidden rounded-2xl border border-navy-100 bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:border-navy-700/20 hover:shadow-lift">
         <div class="flex items-start justify-between"><span class="text-2xl font-bold tracking-wider text-navy-900"><?= $iata ?></span><?= icon('plane', 'size-5 text-accent-600 transition group-hover:translate-x-0.5') ?></div>
         <p class="mt-6 font-semibold text-navy-900"><?= e($city) ?></p>
         <p class="text-sm text-slate-500"><?= e($name) ?></p>

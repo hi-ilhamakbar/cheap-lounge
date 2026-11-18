@@ -52,5 +52,5 @@ function open_order(string $token, string $secret): ?array
     if ($plain === false) return null;
     $json = @gzinflate($plain);
     $o = $json === false ? null : json_decode($json, true);
-    return is_array($o) && ($o['v'] ?? null) === 1 && preg_match(ORDER_CODE_RE, (string) ($o['code'] ?? '')) ? $o : null;
+    return is_array($o) && ($o['v'] ?? null) === 2 && preg_match(ORDER_CODE_RE, (string) ($o['code'] ?? '')) ? $o : null;
 }

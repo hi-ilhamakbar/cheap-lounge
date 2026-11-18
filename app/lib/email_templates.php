@@ -15,8 +15,8 @@ function email_strings(string $lang): array
         ],
         'status' => ['PENDING_PAYMENT' => 'Menunggu Pembayaran', 'PAYMENT_SUBMITTED' => 'Bukti Pembayaran Dikirim'],
         'orderId' => 'ID Pesanan', 'statusLabel' => 'Status pembayaran', 'customer' => 'Data pemesan', 'name' => 'Nama',
-        'whatsapp' => 'WhatsApp', 'email' => 'Email', 'lounge' => 'Detail lounge', 'airport' => 'Bandara', 'loungeName' => 'Lounge',
-        'terminal' => 'Terminal', 'visitDate' => 'Tanggal kunjungan', 'passengers' => 'Penumpang', 'adults' => 'Dewasa', 'children' => 'Anak',
+        'whatsapp' => 'WhatsApp', 'email' => 'Email', 'lounge' => 'Detail lounge', 'airport' => 'Bandara', 'loungeName' => 'Lounge yang diinginkan',
+        'chosen' => 'Dipilihkan oleh tim kami', 'visitDate' => 'Tanggal kunjungan', 'passengers' => 'Penumpang', 'adults' => 'Dewasa', 'children' => 'Anak',
         'adultN' => 'Dewasa', 'childN' => 'Anak', 'price' => 'Rincian harga', 'total' => 'Total pembayaran', 'payTitle' => 'Instruksi pembayaran',
         'paySteps' => [
             'Buka halaman pesanan melalui tombol di bawah, lalu scan QRIS ' . BRAND_NAME . ' (NMID ' . QRIS_NMID . ').',
@@ -25,7 +25,7 @@ function email_strings(string $lang): array
         ],
         'open' => 'Buka halaman pesanan',
         'singleEntry' => 'Penting: setiap voucher hanya berlaku untuk SATU KALI MASUK per penumpang, tidak dapat digunakan ulang, dan bukan keanggotaan atau akses tanpa batas.',
-        'notConfirmation' => 'Informasi lounge bukan konfirmasi ketersediaan. Akses tunduk pada ketentuan dan kapasitas lounge.',
+        'notConfirmation' => 'Ketersediaan lounge akan dikonfirmasi oleh tim kami melalui email atau WhatsApp. Akses tunduk pada ketentuan dan kapasitas lounge.',
         'proof' => 'Bukti pembayaran', 'payer' => 'Nama pengirim', 'note' => 'Catatan', 'attached' => 'terlampir',
         'support' => 'Butuh bantuan? Hubungi kami via WhatsApp', 'na' => '-',
     ];
@@ -36,8 +36,8 @@ function email_strings(string $lang): array
         ],
         'status' => ['PENDING_PAYMENT' => 'Pending Payment', 'PAYMENT_SUBMITTED' => 'Payment Submitted'],
         'orderId' => 'Order ID', 'statusLabel' => 'Payment status', 'customer' => 'Customer details', 'name' => 'Name',
-        'whatsapp' => 'WhatsApp', 'email' => 'Email', 'lounge' => 'Lounge details', 'airport' => 'Airport', 'loungeName' => 'Lounge',
-        'terminal' => 'Terminal', 'visitDate' => 'Visit date', 'passengers' => 'Passengers', 'adults' => 'Adults', 'children' => 'Children',
+        'whatsapp' => 'WhatsApp', 'email' => 'Email', 'lounge' => 'Lounge details', 'airport' => 'Airport', 'loungeName' => 'Preferred lounge',
+        'chosen' => 'Chosen by our team', 'visitDate' => 'Visit date', 'passengers' => 'Passengers', 'adults' => 'Adults', 'children' => 'Children',
         'adultN' => 'Adult', 'childN' => 'Child', 'price' => 'Price breakdown', 'total' => 'Total payment', 'payTitle' => 'Payment instructions',
         'paySteps' => [
             'Open your order page using the button below and scan the ' . BRAND_NAME . ' QRIS (NMID ' . QRIS_NMID . ').',
@@ -46,7 +46,7 @@ function email_strings(string $lang): array
         ],
         'open' => 'Open order page',
         'singleEntry' => 'Important: each voucher is valid for a SINGLE ENTRY per passenger only. It cannot be reused and is not a membership or unlimited-access pass.',
-        'notConfirmation' => 'Lounge information is not a confirmation of availability. Access is subject to lounge conditions and capacity.',
+        'notConfirmation' => 'Our team will confirm lounge availability by email or WhatsApp. Access is subject to lounge conditions and capacity.',
         'proof' => 'Payment proof', 'payer' => 'Sender name', 'note' => 'Note', 'attached' => 'attached',
         'support' => 'Need help? Contact us on WhatsApp', 'na' => '-',
     ];
@@ -70,7 +70,7 @@ function render_order_email(string $kind, array $o): array
     $visit = format_visit_date($o['visitDate'], $lang);
     $money = fn (int $n) => format_idr($n, $lang);
     $showPay = $kind === 'ORDER_CONFIRMATION';
-    $term = $o['lounge']['terminal'] ?? null;
+    $loungeText = $o['lounge'] ?? null;
 
     $row = fn (string $l, string $v) => '<tr><td style="padding:6px 0;color:#64748b;font-size:14px;width:42%;vertical-align:top">' . e($l) . '</td><td style="padding:6px 0;color:#0f1b3d;font-size:14px;font-weight:600">' . e($v) . '</td></tr>';
     $section = fn (string $title, string $inner) => '<h3 style="margin:28px 0 8px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#b91c1c">' . e($title) . '</h3><table role="presentation" width="100%" cellpadding="0" cellspacing="0">' . $inner . '</table>';
@@ -84,7 +84,7 @@ function render_order_email(string $kind, array $o): array
         . '<tr><td style="padding:12px 0 0;border-top:1px solid #e2e8f0;font-size:15px;color:#0f1b3d;font-weight:700">' . e($t['total']) . '</td><td style="padding:12px 0 0;border-top:1px solid #e2e8f0;font-size:18px;color:#0f1b3d;font-weight:800">' . e($money($p['totalAmount'])) . '</td></tr>';
 
     $customer = ($o['customer']['name'] ? $row($t['name'], $o['customer']['name']) : '') . $row($t['whatsapp'], $o['customer']['whatsapp']) . $row($t['email'], $o['customer']['email']);
-    $loungeRows = $row($t['airport'], "{$o['airport']['name']} ({$o['airport']['iata']})") . $row($t['loungeName'], $o['lounge']['name']) . $row($t['terminal'], $term ?? $t['na']) . $row($t['visitDate'], $visit);
+    $loungeRows = $row($t['airport'], $o['airport']) . $row($t['loungeName'], $loungeText ?? $t['chosen']) . $row($t['visitDate'], $visit);
 
     $paymentBox = '';
     if (!empty($o['payment'])) {
@@ -121,8 +121,8 @@ function render_order_email(string $kind, array $o): array
     array_push($lines, '', "{$t['orderId']}: {$o['code']}", "{$t['statusLabel']}: $status", '', $t['customer']);
     if ($o['customer']['name']) $lines[] = "{$t['name']}: {$o['customer']['name']}";
     array_push($lines, "{$t['whatsapp']}: {$o['customer']['whatsapp']}", "{$t['email']}: {$o['customer']['email']}", '',
-        "{$t['airport']}: {$o['airport']['name']} ({$o['airport']['iata']})", "{$t['loungeName']}: {$o['lounge']['name']}",
-        "{$t['terminal']}: " . ($term ?? $t['na']), "{$t['visitDate']}: $visit", '',
+        "{$t['airport']}: {$o['airport']}", "{$t['loungeName']}: " . ($loungeText ?? $t['chosen']),
+        "{$t['visitDate']}: $visit", '',
         "{$t['passengers']} — {$t['adults']}: {$p['adultQty']}, {$t['children']}: {$p['childQty']}");
     foreach ($o['adultNames'] as $i => $n) $lines[] = "  {$t['adultN']} " . ($i + 1) . ": $n";
     foreach ($o['childNames'] as $i => $n) $lines[] = "  {$t['childN']} " . ($i + 1) . ": $n";

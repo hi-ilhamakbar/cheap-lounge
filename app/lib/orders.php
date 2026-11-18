@@ -34,19 +34,16 @@ function create_order(array $in): array
     if (!is_within_booking_window($in['visitDate'], local_today_from_offset(time(), $in['tzOffsetMinutes']))) {
         throw new OrderError('errors.dateOutOfRange', 400, 'visitDate');
     }
-    $lounge = get_active_lounge($in['loungeId']);
-    if (!$lounge || $lounge['airportIata'] !== $in['airportIata']) throw new OrderError('errors.loungeInvalid', 400, 'loungeId');
-
     $price = calculate_price($in['adultQty'], $in['childQty']); // ALWAYS recalculated on the server
 
     $order = [
-        'v' => 1,
+        'v' => 2,
         'code' => derive_order_code($secret, $in['idempotencyKey']),
         'createdAt' => date('c'),
         'lang' => $in['language'],
         'customer' => ['name' => $in['customerName'], 'email' => $in['email'], 'whatsapp' => $in['whatsapp']],
-        'airport' => $lounge['airport'],
-        'lounge' => ['id' => $lounge['id'], 'name' => $lounge['name'], 'terminal' => $lounge['terminal'], 'source' => $lounge['source'], 'externalId' => $lounge['externalId']],
+        'airport' => $in['airport'],          // free text, as written by the customer
+        'lounge' => $in['lounge'],            // free text or null (= our team chooses)
         'visitDate' => $in['visitDate'],
         'adultNames' => $in['adultNames'],
         'childNames' => $in['childNames'],

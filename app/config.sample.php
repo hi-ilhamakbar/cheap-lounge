@@ -31,20 +31,4 @@ return [
     'email_reply_to'  => 'jasatiketmurah@gmail.com',
     // airportloungevoucher@gmail.com and jasatiketmurah@gmail.com are ALWAYS CC'd (built in).
     'email_extra_cc'  => [],
-
-    // ── Lounge data source ─────────────────────────────────────────────────
-    // 'loungekey' → authorized LoungeKey / Collinson partner API (credentials required)
-    // 'file'      → lounges listed in app/data/lounges.json, copied from an authorized LoungeKey source
-    // anything else → the site shows "lounge data unavailable" (it never invents lounge data)
-    'lounge_provider' => 'file',
-    'loungekey' => [
-        'base_url'      => '',
-        'api_key'       => '',
-        'token_url'     => '',   // OAuth2 client-credentials token URL, if used
-        'client_id'     => '',
-        'client_secret' => '',
-        'airports_path' => '/airports',
-        'lounges_path'  => '/lounges',
-        'timeout'       => 10,
-    ],
 ];

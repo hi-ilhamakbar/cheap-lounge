@@ -4,8 +4,9 @@ Bilingual (Bahasa Indonesia default / English) airport lounge voucher ordering s
 **cheaplounge.com**. Plain **PHP 8** — upload the files to `public_html` on cPanel. No Node.js, no npm,
 no Composer, no database, no build step.
 
-* Airport search (name, city, IATA), lounge listings and details from an **authorized LoungeKey** source
-* 5-step booking: Lounge → Date (today…+90 days) → Contact → Passengers (dynamic adult/child names) → Review
+* Free-text search: the customer types the airport / lounge they want → **Cari Lounge** opens the booking form
+  with it pre-filled. No lounge database: **your team confirms availability** by email/WhatsApp.
+* 5-step booking: Airport & Lounge (free text) → Date (today…+90 days) → Contact → Passengers (dynamic adult/child names) → Review
 * Fixed prices: adult **Rp 200.000**, child under 12 **Rp 175.000** — recalculated on the server
 * "Single entry only" notice on homepage, pricing, booking form, payment page and every email
 * Payment by the original **QRIS** image (unmodified) + payment-proof upload
@@ -19,11 +20,11 @@ no Composer, no database, no build step.
 ## Folder layout
 
 ```
-index.php airport.php lounge.php book.php order.php terms.php privacy.php track.php 404.php
-api/            airports.php · lounges.php · order.php · proof.php · health.php
+index.php book.php order.php terms.php privacy.php track.php 404.php
+api/            order.php · proof.php · health.php
 assets/         css/app.css (pre-built) · js/app.js · js/booking.js · img/
 qris/           qris-jasa-tiket-murah.jpg  (original file, byte-identical)
-app/            PRIVATE (blocked by .htaccess): bootstrap, config, lib/, lang/, templates/, data/
+app/            PRIVATE (blocked by .htaccess): bootstrap, config, lib/, lang/, templates/
 storage/        PRIVATE, writable: cache, rate limits, sent-email markers, logs
 vendor/         PHPMailer 7.2.0 (LGPL-2.1)
 dev/            developer tools only (tests, CSS source) — not needed on the server
@@ -47,8 +48,6 @@ outside `public_html`) and fill in:
 | `smtp.host / port / secure / username / password` | Your mailbox (cPanel → Email Accounts → Connect Devices) |
 | `email_from`, `email_from_name`, `email_reply_to` | Sender = the SMTP mailbox |
 | `email_extra_cc` | Optional extra CCs (the two business CCs are built in) |
-| `lounge_provider` | `file` (lounges in `app/data/lounges.json`) or `loungekey` (partner API) |
-| `loungekey.*` | Partner API URL + credentials, once issued by Collinson |
 
 Check the setup at `https://cheaplounge.com/api/health.php` → `"ok": true`.
 
@@ -67,15 +66,12 @@ Duplicates: a double-click, refresh or retry produces the same Order ID and **no
 
 Find orders in Gmail by searching the Order ID or `CLV-`.
 
-## Lounge data — important
+## Lounges — no lounge database
 
-Lounge information must come from an authorized LoungeKey source and is never invented.
-* **`file` mode (works now):** add lounges to `app/data/lounges.json` (format: `app/data/lounges.example.json`),
-  copied from an authorized LoungeKey source such as the LoungeKey Pass Agent Web Portal. Missing fields
-  show "Information unavailable". Empty file = "no lounges listed yet".
-* **`loungekey` mode:** Collinson does not publish public LoungeKey API documentation; access requires a
-  commercial agreement. The adapter (`app/lib/lounges.php`) is ready but **not verified against a live API**
-  — adjust auth/paths/field names when the documentation arrives. See [docs/API.md](docs/API.md).
+Customers write the airport and (optionally) the lounge they want. Leaving the lounge empty means
+"our team chooses". The site never shows lounge details or availability; the confirmation email, the
+order page and the booking form all say that **our team confirms availability by email/WhatsApp**.
+Earlier versions with a LoungeKey connector remain in the git history if API access is granted later.
 
 ## Security
 
@@ -86,8 +82,8 @@ Lounge information must come from an authorized LoungeKey source and is never in
 
 ## Development
 
-* Tests: `php dev/tests/run.php` (61 checks: pricing, dates, phone, validation, Order IDs, encryption,
-  airport search, lounge normaliser, email content, translations).
+* Tests: `php dev/tests/run.php` (52 checks: pricing, dates, phone, validation, Order IDs, encryption,
+  email content, translations).
 * CSS: classes are Tailwind; `assets/css/app.css` is pre-built and committed. To rebuild after changing
   classes: `cd dev && npm i tailwindcss@4 && node build-css.mjs` (developer machine only).
 * Text: `app/lang/id.php` and `app/lang/en.php` (keep the same keys).

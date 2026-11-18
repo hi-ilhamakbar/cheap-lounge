@@ -21,105 +21,13 @@
   var SPIN = '<svg class="size-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>';
   window.CL = { tk: tk, esc: esc, BASE: BASE, SPIN: SPIN };
 
-  /* ── Airport autocomplete ─────────────────────────────────────────── */
-  function initSearch(root) {
-    var form = root.querySelector("form");
-    var input = root.querySelector("input");
-    var panel = root.querySelector("[data-search-panel]");
-    var list = panel.querySelector("ul");
-    var msg = panel.querySelector("[data-search-msg]");
-    var iconBox = root.querySelector("[data-search-icon]");
-    var iconHtml = iconBox.innerHTML;
-    var mode = root.getAttribute("data-mode");
-    var results = [];
-    var active = -1;
-    var timer = null;
-    var ctrl = null;
-
-    function open(v) {
-      panel.classList.toggle("hidden", !v);
-      input.setAttribute("aria-expanded", v ? "true" : "false");
-    }
-    function message(text, isError) {
-      msg.textContent = text || "";
-      msg.className = "px-4 py-4 text-sm " + (isError ? "text-accent-600" : "text-slate-500") + (text ? "" : " hidden");
-    }
-    function render() {
-      list.innerHTML = results
-        .map(function (a, i) {
-          return (
-            '<li id="' + list.id + "-" + i + '" role="option" aria-selected="' + (i === active) + '" data-i="' + i + '" class="flex cursor-pointer items-center gap-3 px-4 py-3 transition ' + (i === active ? "bg-navy-50" : "") + '">' +
-            '<span class="grid size-10 shrink-0 place-items-center rounded-xl bg-navy-900 text-xs font-bold tracking-wider text-white">' + esc(a.iata) + "</span>" +
-            '<span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold text-navy-900">' + esc(a.name) + "</span>" +
-            '<span class="mt-0.5 block truncate text-xs text-slate-500">' + esc([a.city, a.country].filter(Boolean).join(", ")) + "</span></span></li>"
-          );
-        })
-        .join("");
-      input.setAttribute("aria-activedescendant", active >= 0 ? list.id + "-" + active : "");
-    }
-    function choose(a) {
-      input.value = a.name + " (" + a.iata + ")";
-      open(false);
-      if (mode === "select") root.dispatchEvent(new CustomEvent("airport:select", { bubbles: true, detail: a }));
-      else window.location.href = BASE + "/airport.php?iata=" + encodeURIComponent(a.iata);
-    }
-    function search(q) {
-      if (ctrl) ctrl.abort();
-      ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-      iconBox.innerHTML = SPIN;
-      message(I.search.loading);
-      open(true);
-      fetch(BASE + "/api/airports.php?q=" + encodeURIComponent(q), ctrl ? { signal: ctrl.signal } : {})
-        .then(function (r) { return r.json().then(function (d) { if (!r.ok || !d.ok) throw new Error(); return d; }); })
-        .then(function (d) {
-          results = d.airports || [];
-          active = results.length ? 0 : -1;
-          render();
-          message(results.length ? "" : I.search.noResults);
-          open(true);
-        })
-        .catch(function (e) {
-          if (e && e.name === "AbortError") return;
-          results = [];
-          render();
-          message(I.search.failed, true);
-          open(true);
-        })
-        .then(function () { iconBox.innerHTML = iconHtml; });
-    }
-
-    input.addEventListener("input", function () {
-      clearTimeout(timer);
-      var q = input.value.trim();
-      if (q.length < 2) { results = []; render(); message(""); open(false); return; }
-      timer = setTimeout(function () { search(q); }, 250);
-    });
-    input.addEventListener("keydown", function (e) {
-      if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(active + 1, results.length - 1); render(); open(true); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(active - 1, 0); render(); }
-      else if (e.key === "Escape") open(false);
-    });
-    input.addEventListener("focus", function () { if (results.length) open(true); });
-    list.addEventListener("mousedown", function (e) {
-      var li = e.target.closest("li[data-i]");
-      if (!li) return;
-      e.preventDefault();
-      choose(results[+li.getAttribute("data-i")]);
-    });
-    list.addEventListener("mousemove", function (e) {
-      var li = e.target.closest("li[data-i]");
-      if (li && +li.getAttribute("data-i") !== active) { active = +li.getAttribute("data-i"); render(); }
-    });
-    document.addEventListener("mousedown", function (e) { if (!root.contains(e.target)) open(false); });
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      var q = input.value.trim().toUpperCase();
-      if (active >= 0 && results[active]) return choose(results[active]);
-      for (var i = 0; i < results.length; i++) if (results[i].iata === q) return choose(results[i]);
-      if (results.length === 1) return choose(results[0]);
-      message(q.length < 2 ? I.search.minChars : I.search.selectFromList, true);
-      open(true);
-    });
+  /* ── Lounge search box (free text, no suggestions) ───────────────── */
+  function initLoungeSearch(form) {
+    var input = form.querySelector("input[name=q]");
+    var msg = input.getAttribute("data-required-msg");
+    input.addEventListener("invalid", function () { input.setCustomValidity(msg); });
+    input.addEventListener("input", function () { input.setCustomValidity(""); });
+    form.addEventListener("submit", function () { input.value = input.value.replace(/\s+/g, " ").trim(); });
   }
 
   /* ── Copy button ─────────────────────────────────────────────────── */
@@ -237,7 +145,7 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll("[data-airport-search]").forEach(initSearch);
+    document.querySelectorAll("[data-lounge-search]").forEach(initLoungeSearch);
     document.querySelectorAll("[data-copy]").forEach(initCopy);
     document.querySelectorAll("[data-order-code]").forEach(initOrder);
     initFloatAvoider();

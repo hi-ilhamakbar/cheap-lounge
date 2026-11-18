@@ -50,13 +50,15 @@ function validate_order_input(array $in): array
         $out['whatsapp'] = $wa;
     }
 
-    $iata = strtoupper(trim((string) ($in['airportIata'] ?? '')));
-    if (!preg_match('/^[A-Z]{3}$/', $iata)) $err['airportIata'] = 'errors.airportRequired';
-    $out['airportIata'] = $iata;
+    // Free text: the customer writes the airport and (optionally) the lounge they want.
+    $airport = sanitize_text(is_string($in['airport'] ?? null) ? $in['airport'] : '');
+    if (mb_strlen($airport) < 2) $err['airport'] = 'errors.airportRequired';
+    elseif (mb_strlen($airport) > 120) $err['airport'] = 'errors.airportTooLong';
+    $out['airport'] = $airport;
 
-    $lounge = (string) ($in['loungeId'] ?? '');
-    if ($lounge === '' || strlen($lounge) > 300) $err['loungeId'] = 'errors.loungeRequired';
-    $out['loungeId'] = $lounge;
+    $lounge = sanitize_text(is_string($in['lounge'] ?? null) ? $in['lounge'] : '');
+    if (mb_strlen($lounge) > 150) $err['lounge'] = 'errors.loungeTooLong';
+    $out['lounge'] = $lounge !== '' ? $lounge : null;
 
     $visit = (string) ($in['visitDate'] ?? '');
     if (!is_valid_iso_date($visit)) $err['visitDate'] = 'errors.dateRequired';

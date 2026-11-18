@@ -29,9 +29,8 @@ $details = array_filter([
     $order['customer']['name'] ? [preg_replace('/ \(.*\)$/', '', t('booking.customerName')), $order['customer']['name']] : null,
     [t('booking.whatsapp'), $order['customer']['whatsapp']],
     [t('booking.email'), $order['customer']['email']],
-    [t('booking.airport'), "{$order['airport']['name']} ({$order['airport']['iata']})"],
-    [t('booking.lounge'), $order['lounge']['name']],
-    [t('lounge.terminal'), $order['lounge']['terminal'] ?? t('lounge.infoUnavailable')],
+    [t('booking.airport'), $order['airport']],
+    [t('booking.lounge'), $order['lounge'] ?? t('lounge.chosenByTeam')],
     [t('booking.visitDate'), format_visit_date($order['visitDate'], $lang)],
     [t('booking.adults'), (string) $p['adultQty']],
     [t('booking.children'), (string) $p['childQty']],
@@ -40,7 +39,7 @@ $details = array_filter([
 <div class="container-page py-10 sm:py-14" data-order-code="<?= e($order['code']) ?>" data-order-token="<?= e($token) ?>">
   <p class="eyebrow"><?= e(t('order.title')) ?></p>
   <h1 class="heading-display mt-2 text-2xl sm:text-3xl"><?= e(t('order.orderId')) ?>: <span class="font-mono tracking-wide"><?= e($order['code']) ?></span></h1>
-  <div class="mt-6"><?= notice(e(t('order.emailSent')) . ' <strong>' . e($order['customer']['email']) . '</strong>.') ?></div>
+  <div class="mt-6 space-y-3"><?= notice(e(t('order.emailSent')) . ' <strong>' . e($order['customer']['email']) . '</strong>.') ?><?= notice(e(t('lounge.availability'))) ?></div>
 
   <div class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
     <section class="card min-w-0 p-5 sm:p-7">

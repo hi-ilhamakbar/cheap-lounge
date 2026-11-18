@@ -35,10 +35,14 @@ foreach (['0812-3456-7890' => '+6281234567890', '+62 812 3456 7890' => '+6281234
 }
 
 // Validation
-$valid = ['idempotencyKey' => '0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b', 'language' => 'en', 'email' => ' Budi@Example.com ', 'whatsapp' => '0812 3456 7890', 'airportIata' => 'cgk', 'loungeId' => 'CGK-eDE', 'visitDate' => '2026-11-20', 'tzOffsetMinutes' => -420, 'adultQty' => 2, 'childQty' => 1, 'adultNames' => ['Budi Santoso', 'Siti  Aminah'], 'childNames' => ["Rizky O'Neil-Putra"], 'acceptTerms' => true];
+$valid = ['idempotencyKey' => '0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b', 'language' => 'en', 'email' => ' Budi@Example.com ', 'whatsapp' => '0812 3456 7890', 'airport' => '  Soekarno-Hatta   (CGK) ', 'lounge' => 'Lounge Terminal 3', 'visitDate' => '2026-11-20', 'tzOffsetMinutes' => -420, 'adultQty' => 2, 'childQty' => 1, 'adultNames' => ['Budi Santoso', 'Siti  Aminah'], 'childNames' => ["Rizky O'Neil-Putra"], 'acceptTerms' => true];
 [$d, $e] = validate_order_input($valid);
 check('valid order accepted', $e === []);
-check('normalised email/phone/iata/name', $d['email'] === 'budi@example.com' && $d['whatsapp'] === '+6281234567890' && $d['airportIata'] === 'CGK' && $d['adultNames'][1] === 'Siti Aminah');
+check('normalised email/phone/airport/name', $d['email'] === 'budi@example.com' && $d['whatsapp'] === '+6281234567890' && $d['airport'] === 'Soekarno-Hatta (CGK)' && $d['lounge'] === 'Lounge Terminal 3' && $d['adultNames'][1] === 'Siti Aminah');
+[$d2, $e2] = validate_order_input(['lounge' => '   '] + $valid);
+check('lounge is optional (null = team chooses)', $e2 === [] && $d2['lounge'] === null);
+[, $e3] = validate_order_input(['airport' => 'x', 'lounge' => str_repeat('a', 151)] + $valid);
+check('airport required, lounge max 150', ($e3['airport'] ?? '') === 'errors.airportRequired' && ($e3['lounge'] ?? '') === 'errors.loungeTooLong');
 [, $e] = validate_order_input(['adultQty' => 3, 'acceptTerms' => false] + $valid);
 check('names must match quantity + terms required', ($e['adultNames'] ?? '') === 'errors.nameRequired' && ($e['acceptTerms'] ?? '') === 'errors.termsRequired');
 [, $e] = validate_order_input(['email' => 'x', 'whatsapp' => '123', 'adultQty' => 0, 'childQty' => 0, 'adultNames' => [], 'childNames' => []] + $valid);
@@ -54,7 +58,7 @@ check('order code format', (bool) preg_match(ORDER_CODE_RE, $code) && str_starts
 check('same key → same code', $code === derive_order_code($secret, 'key-1234567890abcdef', $now));
 $codes = []; for ($i = 0; $i < 2000; $i++) $codes[derive_order_code($secret, "key-$i-abcdefghijklmnop", $now)] = 1;
 check('codes are spread out', count($codes) > 1960);
-$order = ['v' => 1, 'code' => $code, 'customer' => ['email' => 'budi@example.com'], 'adultNames' => ['Budi Santoso'], 'price' => calculate_price(2, 1)];
+$order = ['v' => 2, 'code' => $code, 'customer' => ['email' => 'budi@example.com'], 'adultNames' => ['Budi Santoso'], 'price' => calculate_price(2, 1)];
 $tok = seal_order($order, $secret);
 check('token round-trip', open_order($tok, $secret) === $order);
 check('token hides personal data', !str_contains((string) base64url_decode($tok), 'Budi'));
@@ -63,26 +67,16 @@ check('tampered token rejected', open_order(base64url_encode($raw), $secret) ===
 check('wrong secret rejected', open_order($tok, 'another-secret-another-secret-12345') === null);
 check('garbage rejected', open_order('garbage!', $secret) === null);
 
-// Airports
-foreach (['CGK' => 'CGK', 'sin' => 'SIN', 'BKK' => 'BKK', 'KUL' => 'KUL', 'Soekarno' => 'CGK', 'Changi' => 'SIN', 'Suvarnabhumi' => 'BKK', 'Kuala Lumpur' => 'KUL'] as $q => $iata) {
-    check("airport search '$q'", (search_local_airports($q)[0]['iata'] ?? '') === $iata);
-}
-
-// Lounge normaliser: only fields that exist
-$l = normalize_lounge(['id' => 123, 'name' => 'Example', 'airport' => ['iata' => 'sin'], 'terminal' => 'T1', 'airside' => true, 'openingHours' => [['day' => 'Mon-Sun', 'open' => '05:00', 'close' => '23:00']], 'amenities' => [['name' => 'Wi-Fi'], 'Showers'], 'images' => ['https://cdn.example.com/a.jpg', 'http://insecure/b.jpg']], 'SIN');
-check('normalise lounge', $l['externalId'] === '123' && $l['airportIata'] === 'SIN' && $l['location'] === 'Airside' && $l['openingHours'] === 'Mon-Sun: 05:00–23:00' && $l['facilities'] === ['Wi-Fi', 'Showers'] && $l['images'] === ['https://cdn.example.com/a.jpg']);
-check('missing fields stay null (never invented)', $l['description'] === null && $l['conditions'] === null);
-check('lounge without id rejected', normalize_lounge(['name' => 'x'], 'SIN') === null);
-check('lounge id round-trip', parse_lounge_id(lounge_id('SIN', 'a/b c'))['externalId'] === 'a/b c');
-
 // Email
-$o = ['code' => 'CLV-20261118-AB2CD', 'lang' => 'id', 'customer' => ['name' => null, 'email' => 'budi@example.com', 'whatsapp' => '+6281234567890'], 'airport' => ['iata' => 'CGK', 'name' => 'Soekarno-Hatta International Airport'], 'lounge' => ['name' => 'Sample <Lounge> & Co', 'terminal' => '3'], 'visitDate' => '2026-11-20', 'adultNames' => ['Budi Santoso', 'Siti Aminah'], 'childNames' => ['Rizky Putra'], 'price' => calculate_price(2, 1), 'status' => 'PENDING_PAYMENT', 'orderUrl' => 'https://example.com/order.php?code=x&d=y'];
+$o = ['code' => 'CLV-20261118-AB2CD', 'lang' => 'id', 'customer' => ['name' => null, 'email' => 'budi@example.com', 'whatsapp' => '+6281234567890'], 'airport' => 'Soekarno-Hatta (CGK)', 'lounge' => 'Sample <Lounge> & Co, Terminal 3', 'visitDate' => '2026-11-20', 'adultNames' => ['Budi Santoso', 'Siti Aminah'], 'childNames' => ['Rizky Putra'], 'price' => calculate_price(2, 1), 'status' => 'PENDING_PAYMENT', 'orderUrl' => 'https://example.com/order.php?code=x&d=y'];
 $m = render_order_email('ORDER_CONFIRMATION', $o);
 check('subject format', $m['subject'] === 'Airport Lounge Voucher Order Confirmation – CLV-20261118-AB2CD');
-$all = true; foreach (['CLV-20261118-AB2CD', '+6281234567890', 'budi@example.com', 'Soekarno-Hatta International Airport (CGK)', 'Budi Santoso', 'Rizky Putra', 'Rp 400.000', 'Rp 175.000', 'Rp 575.000', 'Menunggu Pembayaran', 'Instruksi pembayaran', '+62 852-1300-9993', 'SATU KALI MASUK', '20 November 2026'] as $n) $all = $all && str_contains($m['text'], $n);
+$all = true; foreach (['CLV-20261118-AB2CD', '+6281234567890', 'budi@example.com', 'Bandara: Soekarno-Hatta (CGK)', 'Lounge yang diinginkan: Sample <Lounge> & Co, Terminal 3', 'dikonfirmasi oleh tim kami', 'Budi Santoso', 'Rizky Putra', 'Rp 400.000', 'Rp 175.000', 'Rp 575.000', 'Menunggu Pembayaran', 'Instruksi pembayaran', '+62 852-1300-9993', 'SATU KALI MASUK', '20 November 2026'] as $n) $all = $all && str_contains($m['text'], $n);
 check('email contains all required fields', $all);
 check('email HTML escapes data', str_contains($m['html'], 'Sample &lt;Lounge&gt; &amp; Co') && !str_contains($m['html'], '<Lounge>'));
 $m2 = render_order_email('PAYMENT_SUBMITTED', ['lang' => 'en', 'status' => 'PAYMENT_SUBMITTED', 'payment' => ['fileName' => 'p.jpg', 'payerName' => 'Budi', 'note' => null]] + $o);
+$m3 = render_order_email('ORDER_CONFIRMATION', ['lang' => 'en', 'lounge' => null] + $o);
+check('no lounge → "Chosen by our team"', str_contains($m3['text'], 'Preferred lounge: Chosen by our team'));
 check('proof email (en)', str_contains($m2['subject'], 'Payment Proof Received') && str_contains($m2['text'], 'p.jpg (attached)') && !str_contains($m2['text'], 'Payment instructions'));
 check('CC always includes both internal addresses', array_slice(cc_recipients(), 0, 2) === INTERNAL_CC_EMAILS);
 check('file type sniffing', sniff_mime("\xFF\xD8\xFF\xE0") === 'image/jpeg' && sniff_mime('%PDF-1.7') === 'application/pdf' && sniff_mime('hello') === null);

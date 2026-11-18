@@ -42,19 +42,14 @@ In File Manager, open `public_html/app/`, copy `config.sample.php` → `config.p
     'password' => 'THE-MAILBOX-PASSWORD',
 ],
 'email_from' => 'orders@cheaplounge.com',
-'lounge_provider' => 'file',
 ```
 
 (Safer: put this file at `/home/chee7661/cheaplounge-config.php`, one level above public_html — it is
 used automatically if it exists.)
 
-## 5. Add lounges
-Edit `public_html/app/data/lounges.json` with lounges copied from an authorized LoungeKey source
-(format in `lounges.example.json`). Until you add any, airports show "no lounges listed yet".
-
-## 6. Check
+## 5. Check
 1. `https://cheaplounge.com/api/health.php` → `"ok": true` (shows which part is missing if not).
-2. Open `https://cheaplounge.com` → search an airport → choose a lounge → place a **test order** with
+2. Open `https://cheaplounge.com` → type an airport/lounge → **Cari Lounge** → place a **test order** with
    your own email. Confirm the customer address **and both Gmail CCs** receive
    "Airport Lounge Voucher Order Confirmation – CLV-…".
 3. On the payment page, upload a test image → the "Payment Proof Received" email arrives with the

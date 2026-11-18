@@ -3,11 +3,9 @@ declare(strict_types=1);
 require __DIR__ . '/app/bootstrap.php';
 require APP_ROOT . '/templates/layout.php';
 
-$lounge = isset($_GET['lounge']) ? get_active_lounge((string) $_GET['lounge']) : null;
-$initial = $lounge ? [
-    'airport' => $lounge['airport'],
-    'lounge' => array_intersect_key($lounge, array_flip(['id', 'name', 'terminal', 'openingHours', 'airportIata'])),
-] : null;
+// Text typed in the homepage search box ("Cari Lounge") is pre-filled as the airport.
+$q = mb_substr(sanitize_text((string) ($_GET['q'] ?? '')), 0, 120);
+$initial = $q !== '' ? ['airport' => $q] : null;
 $steps = t('booking.steps');
 
 page_start(t('booking.title'), ['noindex' => true, 'scripts' => ['assets/js/booking.js']]);
@@ -30,21 +28,22 @@ page_start(t('booking.title'), ['noindex' => true, 'scripts' => ['assets/js/book
       <div class="card p-5 sm:p-8">
         <div class="mb-6 hidden" data-form-error></div>
 
-        <!-- STEP 0: airport & lounge -->
-        <section data-step="0" class="space-y-6">
+        <!-- STEP 0: airport & lounge (free text — our team confirms availability) -->
+        <section data-step="0" class="space-y-5">
           <h2 class="text-xl font-semibold"><?= e($steps[0]) ?></h2>
           <div>
-            <span class="field-label"><?= e(t('booking.airport')) ?></span>
-            <p class="mb-3 hidden rounded-xl bg-navy-50 px-4 py-3 text-sm" data-airport-display></p>
-            <?= airport_search('md', 'select') ?>
-            <p class="field-error hidden" data-error="airportIata"></p>
+            <label for="airport" class="field-label"><?= e(t('booking.airport')) ?> *</label>
+            <input id="airport" type="text" maxlength="120" autocomplete="off" class="field-input" data-field="airport">
+            <p class="field-hint"><?= e(t('booking.airportHint')) ?></p>
+            <p class="field-error hidden" data-error="airport"></p>
           </div>
           <div>
-            <span class="field-label"><?= e(t('booking.lounge')) ?></span>
-            <div data-lounge-area></div>
-            <p class="field-error hidden" data-error="loungeId"></p>
+            <label for="lounge" class="field-label"><?= e(t('booking.lounge')) ?></label>
+            <input id="lounge" type="text" maxlength="150" autocomplete="off" class="field-input" data-field="lounge">
+            <p class="field-hint"><?= e(t('booking.loungeHint')) ?></p>
+            <p class="field-error hidden" data-error="lounge"></p>
           </div>
-          <p class="text-xs text-slate-500"><?= e(t('lounge.disclaimer')) ?></p>
+          <?= notice(e(t('lounge.availability'))) ?>
         </section>
 
         <!-- STEP 1: date -->
