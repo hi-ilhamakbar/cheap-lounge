@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /*
- * NO DATABASE. The confirmation email (to the customer, CC to both internal addresses) IS the order
+ * NO DATABASE. The confirmation email (to the customer, copy to both internal addresses) IS the order
  * record. If it cannot be sent, the order is refused and the customer is asked to retry — a retry uses
  * the same idempotency key, so it gets the same Order ID and can never create a duplicate.
  */
@@ -31,23 +31,33 @@ function send_order_email(string $kind, array $order, string $token, string $ded
 function create_order(array $in): array
 {
     $secret = order_secret();
-    if (!is_within_booking_window($in['visitDate'], local_today_from_offset(time(), $in['tzOffsetMinutes']))) {
-        throw new OrderError('errors.dateOutOfRange', 400, 'visitDate');
+    $d = $in['data'];
+    $today = $in['localToday'];
+
+    switch ($in['type']) {
+        case 'lounge':
+            if (!is_within_booking_window($d['visitDate'], $today)) throw new OrderError('errors.dateOutOfRange', 400, 'visitDate');
+            $price = price_lines_lounge($d['adultQty'], $d['childQty']); // ALWAYS recalculated on the server
+            $data = ['airport' => $d['airport'], 'visitDate' => $d['visitDate'], 'adultNames' => $d['adultNames'], 'childNames' => $d['childNames']];
+            break;
+        case 'ticket':
+            $price = price_lines_ticket(count($d['routes']), count($d['passengers']));
+            $data = $d;
+            break;
+        default:
+            $price = price_lines_hotel(count($d['stays']), $d['adults'], $d['children'], $d['infants']);
+            $data = $d;
     }
-    $price = calculate_price($in['adultQty'], $in['childQty']); // ALWAYS recalculated on the server
 
     $order = [
-        'v' => 2,
-        'code' => derive_order_code($secret, $in['idempotencyKey']),
+        'v' => 3,
+        'type' => $in['type'],
+        'code' => derive_order_code($secret, $in['idempotencyKey'], null, ORDER_PREFIX[$in['type']]),
         'createdAt' => date('c'),
         'lang' => $in['language'],
         'customer' => ['name' => $in['customerName'], 'email' => $in['email'], 'whatsapp' => $in['whatsapp']],
-        'airport' => $in['airport'],          // free text, as written by the customer
-        'lounge' => $in['lounge'],            // free text or null (= our team chooses)
-        'visitDate' => $in['visitDate'],
-        'adultNames' => $in['adultNames'],
-        'childNames' => $in['childNames'],
         'price' => $price,
+        'data' => $data,
     ];
     $token = seal_order($order, $secret);
 
@@ -56,7 +66,7 @@ function create_order(array $in): array
         log_event('error', 'order_email_failed', ['orderCode' => $order['code'], 'error' => $r['error'] ?? '']);
         throw new OrderError('errors.orderEmailFailed', 502);
     }
-    log_event('info', 'order_created', ['orderCode' => $order['code'], 'total' => $price['totalAmount'], 'duplicate' => !empty($r['duplicate'])]);
+    log_event('info', 'order_created', ['orderCode' => $order['code'], 'type' => $order['type'], 'total' => $price['total'], 'duplicate' => !empty($r['duplicate'])]);
     return ['orderCode' => $order['code'], 'token' => $token];
 }
 

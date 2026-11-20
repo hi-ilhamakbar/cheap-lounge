@@ -25,3 +25,19 @@ function whatsapp_link(string $message): string
 {
     return WHATSAPP_URL . '?text=' . rawurlencode($message);
 }
+
+// ── Dummy ticket (flight reservation) ──────────────────────────────────────
+// One way Rp 100.000 / person, round trip Rp 200.000 / person (= Rp 100.000 per route per person).
+// Multi-city follows the same rule: Rp 100.000 per route per person. Same price for adult / child / infant.
+const TICKET_PRICE_PER_ROUTE_IDR = 100000;
+const TICKET_MAX_ROUTES = 5;
+const DUMMY_WINDOW_DAYS = 300;            // travel / stay dates: today … today + 300 days
+const PAX_SELECT_MAX = 9;                 // drop-downs 0–9
+
+// ── Dummy hotel ─────────────────────────────────────────────────────────────
+// Rp 100.000 per person per hotel (adults and children); infants free.
+const HOTEL_PRICE_PER_GUEST_IDR = 100000;
+const HOTEL_MAX_STAYS = 5;
+
+/** Order ID prefix per service. */
+const ORDER_PREFIX = ['lounge' => 'CLV', 'ticket' => 'DTK', 'hotel' => 'DHT'];

@@ -37,12 +37,7 @@ page_start(t('booking.title'), ['noindex' => true, 'scripts' => ['assets/js/book
             <p class="field-hint"><?= e(t('booking.airportHint')) ?></p>
             <p class="field-error hidden" data-error="airport"></p>
           </div>
-          <div>
-            <label for="lounge" class="field-label"><?= e(t('booking.lounge')) ?></label>
-            <input id="lounge" type="text" maxlength="150" autocomplete="off" class="field-input" data-field="lounge">
-            <p class="field-hint"><?= e(t('booking.loungeHint')) ?></p>
-            <p class="field-error hidden" data-error="lounge"></p>
-          </div>
+          <?= lounge_finder_note() ?>
           <?= notice(e(t('lounge.availability'))) ?>
         </section>
 
@@ -116,6 +111,12 @@ page_start(t('booking.title'), ['noindex' => true, 'scripts' => ['assets/js/book
             <p class="text-xs font-semibold uppercase tracking-[0.16em] text-navy-100"><?= e(t('booking.priceBreakdown')) ?></p>
             <dl class="mt-4 space-y-2 text-sm" data-price="dark"></dl>
           </div>
+          <?= voucher_timing_notice() ?>
+          <label class="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-amber-300 bg-white p-3 text-sm font-semibold text-amber-900">
+            <input type="checkbox" class="mt-0.5 size-5 shrink-0 accent-amber-600" data-field="acceptVoucherTiming">
+            <span><?= e(t('voucherTiming.ack')) ?></span>
+          </label>
+          <p class="field-error hidden" data-error="acceptVoucherTiming"></p>
           <?= single_entry_notice() ?>
           <label class="flex cursor-pointer items-start gap-3 text-sm">
             <input type="checkbox" class="mt-0.5 size-5 shrink-0 accent-navy-900" data-field="acceptTerms">
@@ -135,8 +136,8 @@ page_start(t('booking.title'), ['noindex' => true, 'scripts' => ['assets/js/book
     <aside class="lg:sticky lg:top-24 lg:self-start">
       <div class="card p-5">
         <p class="text-xs font-semibold uppercase tracking-[0.16em] text-accent-600"><?= e(t('booking.summary')) ?></p>
-        <p class="mt-3 font-semibold" data-side-lounge>—</p>
-        <p class="text-sm text-slate-500" data-side-airport>—</p>
+        <p class="mt-3 text-sm text-slate-500"><?= e(t('meta.loungeTitle')) ?></p>
+        <p class="font-semibold" data-side-airport>—</p>
         <p class="mt-2 hidden text-sm text-slate-600" data-side-date></p>
         <dl class="mt-4 space-y-2 text-sm" data-price="light"></dl>
         <p class="mt-4 text-xs text-slate-500"><?= e(t('singleEntry.short')) ?></p>

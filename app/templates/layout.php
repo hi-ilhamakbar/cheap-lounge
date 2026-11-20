@@ -11,7 +11,7 @@ function page_start(string $title = '', array $opts = []): void
     $robots = !empty($opts['noindex']) ? '<meta name="robots" content="noindex, nofollow">' : '';
     $referrer = !empty($opts['noReferrer']) ? '<meta name="referrer" content="no-referrer">' : '';
     // Client-side strings for app.js / booking.js
-    $js = ['errors' => t('errors'), 'search' => t('search'), 'lounge' => t('lounge'), 'booking' => t('booking'), 'order' => t('order'), 'status' => t('status'), 'singleEntry' => t('singleEntry')];
+    $js = ['errors' => t('errors'), 'search' => t('search'), 'lounge' => t('lounge'), 'booking' => t('booking'), 'order' => t('order'), 'status' => t('status'), 'singleEntry' => t('singleEntry'), 'form' => t('form'), 'ticket' => t('ticket'), 'hotel' => t('hotel')];
     ?>
 <!doctype html>
 <html lang="<?= e($lang) ?>">
@@ -55,8 +55,7 @@ function logo(bool $light = false): string
     return '<a href="' . e(url('')) . '" class="group inline-flex items-center gap-2.5" aria-label="JASA TIKET MURAH — home">'
         . '<span class="grid size-9 place-items-center rounded-xl ' . ($light ? 'bg-white text-navy-900' : 'bg-navy-900 text-white') . ' shadow-sm">'
         . '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 18h16M6 18V9a6 6 0 0 1 12 0v9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="9" r="1.6" fill="#d62f37"/></svg></span>'
-        . '<span class="leading-none"><span class="block text-[13px] font-extrabold tracking-[0.08em] ' . ($light ? 'text-white' : 'text-navy-900') . '">JASA TIKET MURAH</span>'
-        . '<span class="block pt-1 text-[11px] font-medium tracking-wide ' . ($light ? 'text-navy-100' : 'text-slate-500') . '">Airport Lounge Voucher</span></span></a>';
+        . '<span class="text-[15px] font-extrabold leading-none tracking-[0.08em] ' . ($light ? 'text-white' : 'text-navy-900') . '">JASA TIKET MURAH</span></a>';
 }
 
 function lang_switch_url(string $lang): string
@@ -69,17 +68,28 @@ function lang_switch_url(string $lang): string
 function render_header(): void
 {
     $lang = current_lang();
-    $links = [['#how', t('nav.howItWorks')], ['#pricing', t('nav.pricing')], ['#faq', t('nav.faq')], ['#support', t('nav.contact')]];
+    $links = [['airport-lounge.php', t('nav.lounge')], ['dummy-ticket.php', t('nav.ticket')], ['dummy-hotel.php', t('nav.hotel')], ['#support', t('nav.contact')]];
+    $current = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
     echo '<header class="sticky top-0 z-40 border-b border-navy-100/70 bg-white/85 backdrop-blur-md"><div class="container-page flex h-16 items-center justify-between gap-4">' . logo();
     echo '<nav aria-label="Main" class="hidden items-center gap-7 md:flex">';
-    foreach ($links as [$h, $l]) echo '<a href="' . e(url('') . $h) . '" class="text-sm font-medium text-navy-700 transition hover:text-navy-900">' . e($l) . '</a>';
+    foreach ($links as [$h, $l]) {
+        $active = $h === $current || ($h === 'airport-lounge.php' && $current === 'book.php');
+        echo '<a href="' . e($h[0] === '#' ? $h : url($h)) . '" class="text-sm font-medium transition ' . ($active ? 'text-navy-900 underline decoration-accent-600 decoration-2 underline-offset-8' : 'text-navy-700 hover:text-navy-900') . '">' . e($l) . '</a>';
+    }
     echo '</nav><div class="flex items-center gap-2 sm:gap-3"><div role="group" aria-label="' . e(t('nav.language')) . '" class="inline-flex rounded-full border border-navy-100 bg-navy-50 p-0.5">';
     foreach (['id' => ['ID', 'Bahasa Indonesia'], 'en' => ['EN', 'English']] as $code => [$short, $full]) {
         $active = $code === $lang;
         echo '<a href="' . e(lang_switch_url($code)) . '" hreflang="' . $code . '" title="' . e($full) . '" aria-current="' . ($active ? 'true' : 'false') . '" class="rounded-full px-3 py-1.5 text-xs font-semibold transition '
             . ($active ? 'bg-navy-900 text-white shadow-sm' : 'text-navy-700 hover:text-navy-900') . '">' . $short . '</a>';
     }
-    echo '</div><a href="' . e(url('') . '#search') . '" class="btn-primary hidden px-4 py-2.5 sm:inline-flex">' . e(t('nav.book')) . '</a></div></div></header>';
+    echo '</div><a href="' . e(url('') . '#services') . '" class="btn-primary hidden px-4 py-2.5 sm:inline-flex">' . e(t('nav.book')) . '</a></div></div>';
+    // Mobile: service tabs under the bar
+    echo '<nav aria-label="Services" class="flex gap-1 overflow-x-auto border-t border-navy-100/70 px-3 py-2 md:hidden">';
+    foreach (array_slice($links, 0, 3) as [$h, $l]) {
+        $active = $h === $current || ($h === 'airport-lounge.php' && $current === 'book.php');
+        echo '<a href="' . e(url($h)) . '" class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ' . ($active ? 'bg-navy-900 text-white' : 'bg-navy-50 text-navy-700') . '">' . e($l) . '</a>';
+    }
+    echo '</nav></header>';
 }
 
 function render_footer(): void
@@ -89,9 +99,10 @@ function render_footer(): void
     $li = fn ($href, $label) => '<li><a class="hover:text-white" href="' . e($href) . '">' . e($label) . '</a></li>';
     echo '<footer class="mt-24 bg-navy-950 text-navy-100"><div class="container-page grid gap-10 py-14 md:grid-cols-[1.4fr_1fr_1fr]">'
         . '<div class="space-y-4">' . logo(true) . '<p class="max-w-sm text-sm leading-relaxed text-slate-300">' . e(t('footer.tagline')) . '</p><p class="text-xs text-slate-400">QRIS NMID ' . QRIS_NMID . '</p></div>'
+        . '<div class="grid grid-cols-2 gap-6"><div><h2 class="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-white">' . e(t('footer.services')) . '</h2><ul class="space-y-2.5 text-sm">'
+        . $li(url('airport-lounge.php'), t('nav.lounge')) . $li(url('dummy-ticket.php'), t('nav.ticket')) . $li(url('dummy-hotel.php'), t('nav.hotel')) . '</ul></div>'
         . '<div><h2 class="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-white">' . e(t('footer.links')) . '</h2><ul class="space-y-2.5 text-sm">'
-        . $li(url('') . '#how', t('nav.howItWorks')) . $li(url('') . '#pricing', t('nav.pricing')) . $li(url('') . '#faq', t('nav.faq'))
-        . $li(url('track.php'), t('footer.trackOrder')) . $li(url('terms.php'), t('footer.terms')) . $li(url('privacy.php'), t('footer.privacy')) . '</ul></div>'
+        . $li(url('track.php'), t('footer.trackOrder')) . $li(url('terms.php'), t('footer.terms')) . $li(url('privacy.php'), t('footer.privacy')) . '</ul></div></div>'
         . '<div><h2 class="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-white">' . e(t('footer.contact')) . '</h2><ul class="space-y-2.5 text-sm">'
         . '<li><a class="hover:text-white" href="' . e($wa) . '" target="_blank" rel="noopener noreferrer">WhatsApp ' . WHATSAPP_DISPLAY . '</a></li>';
     // With internal_copy = 'bcc' the internal Gmail addresses stay private (not shown on the site either).

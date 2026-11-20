@@ -30,7 +30,7 @@ const files = [];
 })(root);
 
 const candidates = new Set();
-for (const f of files) for (const m of fs.readFileSync(f, "utf8").matchAll(/[A-Za-z0-9_\-:\/\[\]\.%#!()=,'&>+~*@]+/g)) candidates.add(m[0]);
+for (const f of files) for (const m of fs.readFileSync(f, "utf8").matchAll(/[A-Za-z0-9_\-:\/\[\]\.%#!()=,&>+~*@]+/g)) candidates.add(m[0]);
 const css = compiler.build([...candidates]);
 fs.writeFileSync(path.join(root, "assets/css/app.css"), css);
 console.log(`assets/css/app.css written (${css.length} bytes from ${files.length} files)`);

@@ -7,7 +7,7 @@ declare(strict_types=1);
  * passenger data is not visible in the URL and amounts cannot be tampered with.
  */
 const ORDER_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-const ORDER_CODE_RE = '/^CLV-\d{8}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$/';
+const ORDER_CODE_RE = '/^(CLV|DTK|DHT)-\d{8}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$/';
 
 function order_secret(): string
 {
@@ -20,13 +20,13 @@ function order_secret(): string
  * CLV-YYYYMMDD-XXXXX. The suffix is derived from the browser's idempotency key, so a retried or
  * double-clicked submission gets the SAME Order ID (and no second email is sent).
  */
-function derive_order_code(string $secret, string $idempotencyKey, ?int $nowTs = null): string
+function derive_order_code(string $secret, string $idempotencyKey, ?int $nowTs = null, string $prefix = 'CLV'): string
 {
-    $h = hash_hmac('sha256', 'order-code:' . $idempotencyKey, $secret, true);
+    $h = hash_hmac('sha256', "order-code:$prefix:" . $idempotencyKey, $secret, true);
     $suffix = '';
     for ($i = 0; $i < 5; $i++) $suffix .= ORDER_CODE_ALPHABET[ord($h[$i]) % strlen(ORDER_CODE_ALPHABET)];
     $date = (new DateTimeImmutable('@' . ($nowTs ?? time())))->setTimezone(new DateTimeZone('Asia/Jakarta'))->format('Ymd');
-    return "CLV-$date-$suffix";
+    return "$prefix-$date-$suffix";
 }
 
 function order_key(string $secret): string
@@ -52,5 +52,22 @@ function open_order(string $token, string $secret): ?array
     if ($plain === false) return null;
     $json = @gzinflate($plain);
     $o = $json === false ? null : json_decode($json, true);
-    return is_array($o) && ($o['v'] ?? null) === 2 && preg_match(ORDER_CODE_RE, (string) ($o['code'] ?? '')) ? $o : null;
+    if (!is_array($o) || !preg_match(ORDER_CODE_RE, (string) ($o['code'] ?? ''))) return null;
+    return upgrade_order($o);
+}
+
+/** Orders are stored as v3 ({type, customer, price{lines,total}, data}). Older lounge links (v2) are converted. */
+function upgrade_order(array $o): ?array
+{
+    if (($o['v'] ?? null) === 3) return $o;
+    if (($o['v'] ?? null) !== 2) return null;
+    $p = $o['price'];
+    $lines = [];
+    if ($p['adultQty']) $lines[] = ['k' => 'adult', 'qty' => $p['adultQty'], 'unit' => $p['adultUnitPrice'], 'sub' => $p['adultSubtotal']];
+    if ($p['childQty']) $lines[] = ['k' => 'child', 'qty' => $p['childQty'], 'unit' => $p['childUnitPrice'], 'sub' => $p['childSubtotal']];
+    return [
+        'v' => 3, 'type' => 'lounge', 'code' => $o['code'], 'createdAt' => $o['createdAt'] ?? '', 'lang' => $o['lang'],
+        'customer' => $o['customer'], 'price' => ['lines' => $lines, 'total' => $p['totalAmount']],
+        'data' => ['airport' => $o['airport'], 'visitDate' => $o['visitDate'], 'adultNames' => $o['adultNames'], 'childNames' => $o['childNames']],
+    ];
 }

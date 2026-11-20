@@ -51,3 +51,28 @@ function lounge_search(string $size = 'lg'): string
         . '<button type="submit" class="btn-primary shrink-0 ' . ($lg ? 'px-5 py-3 sm:px-6' : 'px-4 py-2') . '"><span class="hidden sm:inline">' . e(t('search.button')) . '</span>' . icon('search', 'size-4 sm:hidden') . '</button>'
         . '</form>';
 }
+
+/** Big, hard-to-miss notice: lounge vouchers are delivered by the departure day at the latest. */
+function voucher_timing_notice(): string
+{
+    return '<div role="alert" class="rounded-2xl border-2 border-amber-400 bg-amber-50 p-5 sm:p-6">'
+        . '<div class="flex items-start gap-3">' . icon('alert', 'mt-0.5 size-6 shrink-0 text-amber-600')
+        . '<div><p class="text-base font-extrabold leading-snug text-amber-900 sm:text-lg">' . e(t('voucherTiming.title')) . '</p>'
+        . '<p class="mt-2 text-sm leading-relaxed text-amber-900/90">' . e(t('voucherTiming.body')) . '</p></div></div></div>';
+}
+
+function lounge_finder_note(bool $light = false): string
+{
+    return '<p class="mt-3 flex items-start gap-2 text-sm ' . ($light ? 'text-slate-300' : 'text-slate-600') . '">' . icon('info', 'mt-0.5 size-4 shrink-0 text-navy-700') . '<span>'
+        . e(t('loungeFinder.text')) . ' <a href="https://loungefinder.loungekey.com" target="_blank" rel="noopener noreferrer" class="font-semibold text-navy-900 underline decoration-accent-600 underline-offset-2">' . e(t('loungeFinder.link')) . '</a>.</span></p>';
+}
+
+/** Small label + select 0–9 (used by dummy ticket / hotel forms). */
+function count_select(string $name, string $label, string $hint, int $default, int $min = 0, int $max = 9): string
+{
+    $opts = '';
+    for ($i = $min; $i <= $max; $i++) $opts .= '<option value="' . $i . '"' . ($i === $default ? ' selected' : '') . '>' . $i . '</option>';
+    return '<div><label for="f-' . e($name) . '" class="field-label">' . e($label) . '</label>'
+        . '<select id="f-' . e($name) . '" name="' . e($name) . '" class="field-input" data-count="' . e($name) . '">' . $opts . '</select>'
+        . ($hint !== '' ? '<p class="field-hint">' . e($hint) . '</p>' : '') . '<p class="field-error hidden" data-error="' . e($name) . '"></p></div>';
+}

@@ -22,6 +22,9 @@ function icon(string $name, string $class = 'size-5'): string
         'copy' => '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
         'upload' => '<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
         'users' => '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+        'hotel' => '<path d="M3 21V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v14M15 11h4a2 2 0 0 1 2 2v8M2 21h20M7 9h1M11 9h1M7 13h1M11 13h1M7 17h1M11 17h1"/>',
+        'plus' => '<path d="M12 5v14M5 12h14"/>',
+        'trash' => '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
         'spinner' => '<path d="M12 3a9 9 0 1 0 9 9"/>',
     ];
     if ($name === 'whatsapp') {

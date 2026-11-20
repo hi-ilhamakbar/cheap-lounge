@@ -6,21 +6,21 @@
   var I = window.I18N, LANG = window.LANG, CL = window.CL, esc = CL.esc, tk = CL.tk;
   var B = I.booking;
   var PRICE = { adult: 200000, child: 175000 }, MAXQ = 10, WINDOW = 90;
-  var DRAFT = "clv-booking-draft-v3";
-  var STEP_FIELDS = [["airport", "lounge"], ["visitDate"], ["whatsapp", "email", "customerName"], ["adultQty", "childQty", "adultNames", "childNames"], ["acceptTerms"]];
+  var DRAFT = "clv-booking-draft-v4";
+  var STEP_FIELDS = [["airport"], ["visitDate"], ["whatsapp", "email", "customerName"], ["adultQty", "childQty", "adultNames", "childNames"], ["acceptVoucherTiming", "acceptTerms"]];
 
   var initial = JSON.parse(root.getAttribute("data-initial") || "null");
   var S = {
-    airport: initial ? initial.airport : "", lounge: "",
+    airport: initial ? initial.airport : "",
     visitDate: "", customerName: "", whatsapp: "+62 ", email: "",
-    adultQty: 1, childQty: 0, adultNames: [""], childNames: [], acceptTerms: false,
+    adultQty: 1, childQty: 0, adultNames: [""], childNames: [], acceptTerms: false, acceptVoucherTiming: false,
   };
   var step = 0, submitting = false, idem = null;
 
   try {
     var d = JSON.parse(sessionStorage.getItem(DRAFT) || "null");
     if (d) {
-      for (var k in S) if (k in d && k !== "acceptTerms") S[k] = d[k];
+      for (var k in S) if (k in d && k !== "acceptTerms" && k !== "acceptVoucherTiming") S[k] = d[k];
       if (initial) S.airport = initial.airport; // text typed on the homepage wins
     }
   } catch (e) {}
@@ -135,7 +135,6 @@
   }
   function renderSide() {
     $("[data-side-airport]").textContent = clean(S.airport) || "—";
-    $("[data-side-lounge]").textContent = clean(S.lounge) || (clean(S.airport) ? I.lounge.chosenByTeam : "—");
     var sd = $("[data-side-date]");
     sd.textContent = S.visitDate && validISO(S.visitDate) ? visitLabel(S.visitDate) : "";
     sd.classList.toggle("hidden", !sd.textContent);
@@ -151,7 +150,7 @@
     S.adultNames.forEach(function (n, i) { pax += row(fmt(B.adultN, { n: i + 1 }).split(" – ")[0], n.trim()); });
     S.childNames.forEach(function (n, i) { pax += row(fmt(B.childN, { n: i + 1 }).split(" – ")[0], n.trim()); });
     $("[data-summary]").innerHTML =
-      block(B.steps[0], 0, row(B.airport, clean(S.airport)) + row(B.lounge, clean(S.lounge) || I.lounge.chosenByTeam)) +
+      block(B.steps[0], 0, row(B.airport, clean(S.airport))) +
       block(B.steps[1], 1, row(B.visitDate, visitLabel(S.visitDate))) +
       block(B.contact, 2, (S.customerName.trim() ? row(B.customerName.replace(/ \(.*\)$/, ""), S.customerName.trim()) : "") + row(B.whatsapp, normalizeWa(S.whatsapp) || S.whatsapp) + row(B.email, S.email.trim().toLowerCase())) +
       block(B.passengers, 3, pax);
@@ -181,7 +180,6 @@
     if (s === 0) {
       var ap = clean(S.airport);
       if (ap.length < 2) e.airport = "errors.airportRequired"; else if (ap.length > 120) e.airport = "errors.airportTooLong";
-      if (clean(S.lounge).length > 150) e.lounge = "errors.loungeTooLong";
     }
     if (s === 1) { if (!S.visitDate) e.visitDate = "errors.dateRequired"; else if (!inWindow(S.visitDate)) e.visitDate = "errors.dateOutOfRange"; }
     if (s === 2) {
@@ -195,6 +193,7 @@
       S.adultNames.forEach(function (n, i) { var x = nameError(n); if (x) e["adultNames." + i] = x; });
       S.childNames.forEach(function (n, i) { var x = nameError(n); if (x) e["childNames." + i] = x; });
     }
+    if (s === 4 && !S.acceptVoucherTiming) e.acceptVoucherTiming = "errors.voucherTimingRequired";
     if (s === 4 && !S.acceptTerms) e.acceptTerms = "errors.termsRequired";
     return e;
   }
@@ -218,8 +217,8 @@
     }
     var payload = {
       language: LANG, customerName: S.customerName.trim() || undefined, email: S.email, whatsapp: S.whatsapp,
-      airport: clean(S.airport), lounge: clean(S.lounge) || undefined, visitDate: S.visitDate,
-      adultQty: S.adultQty, childQty: S.childQty, adultNames: S.adultNames, childNames: S.childNames, acceptTerms: S.acceptTerms,
+      type: "lounge", airport: clean(S.airport), visitDate: S.visitDate,
+      adultQty: S.adultQty, childQty: S.childQty, adultNames: S.adultNames, childNames: S.childNames, acceptTerms: S.acceptTerms, acceptVoucherTiming: S.acceptVoucherTiming,
     };
     // Same payload re-submitted (double click, refresh, network retry) → same key → same order, one email.
     var pj = JSON.stringify(payload);
@@ -248,7 +247,7 @@
         finish();
       })
       .catch(function () { formError(I.errors.network); finish(); });
-    function finish() { submitting = false; btn.innerHTML = html; btn.disabled = !S.acceptTerms; }
+    function finish() { submitting = false; btn.innerHTML = html; btn.disabled = !S.acceptTerms || !S.acceptVoucherTiming; }
   }
 
   /* ── wire up ───────────────────────────────────────────── */
@@ -256,13 +255,16 @@
   dateInput.min = today; dateInput.max = maxDate; dateInput.value = S.visitDate;
   function datePreview() { $("[data-date-preview]").textContent = inWindow(S.visitDate) ? visitLabel(S.visitDate) : ""; }
   dateInput.addEventListener("input", function () { S.visitDate = dateInput.value; save(); datePreview(); renderSide(); });
-  ["airport", "lounge", "whatsapp", "email", "customerName"].forEach(function (f) {
+  ["airport", "whatsapp", "email", "customerName"].forEach(function (f) {
     var inp = $("#" + f);
     inp.value = S[f];
-    inp.addEventListener("input", function () { S[f] = inp.value; save(); if (f === "airport" || f === "lounge") renderSide(); });
+    inp.addEventListener("input", function () { S[f] = inp.value; save(); if (f === "airport") renderSide(); });
   });
   var terms = $('[data-field="acceptTerms"]');
-  terms.addEventListener("change", function () { S.acceptTerms = terms.checked; $("[data-submit]").disabled = submitting || !terms.checked; });
+  var vt = $('[data-field="acceptVoucherTiming"]');
+  function canSubmit() { $("[data-submit]").disabled = submitting || !S.acceptTerms || !S.acceptVoucherTiming; }
+  terms.addEventListener("change", function () { S.acceptTerms = terms.checked; canSubmit(); });
+  vt.addEventListener("change", function () { S.acceptVoucherTiming = vt.checked; canSubmit(); });
   ["adult", "child"].forEach(function (kind) {
     $('[data-qty="' + kind + '"] [data-dec]').addEventListener("click", function () { setQty(kind, S[kind + "Qty"] - 1); });
     $('[data-qty="' + kind + '"] [data-inc]').addEventListener("click", function () { setQty(kind, S[kind + "Qty"] + 1); });
@@ -277,5 +279,5 @@
   $("[data-submit]").addEventListener("click", submit);
 
   renderNames(); datePreview(); renderSide(); renderProgress();
-  if (!clean(S.airport)) $("#airport").focus(); else if (!clean(S.lounge)) $("#lounge").focus();
+  if (!clean(S.airport)) $("#airport").focus();
 })();

@@ -75,3 +75,8 @@ No code changes are needed — all links are relative; only the config changes.
 6. Check `https://id.cheaplounge.com/api/health.php`.
 A config file outside the web folder is looked for one level above it
 (`/home/USER/cheaplounge-config.php` for both layouts).
+
+## Updating to a new version
+Download the latest ZIP from GitHub and upload/overwrite the files in the site folder. Your
+`app/config.php` is not in the repository, so it is never overwritten. Files that no longer exist in the
+repository can be deleted from the server.

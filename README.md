@@ -1,29 +1,39 @@
-# JASA TIKET MURAH — Airport Lounge Voucher website
+# JASA TIKET MURAH — Airport Lounge, Dummy Ticket & Dummy Hotel
 
-Bilingual (Bahasa Indonesia default / English) airport lounge voucher ordering site for
-**cheaplounge.com**. Plain **PHP 8** — upload the files to `public_html` on cPanel. No Node.js, no npm,
-no Composer, no database, no build step.
+Bilingual (Bahasa Indonesia default / English) ordering website for **id.cheaplounge.com**. Plain **PHP 8.1+** —
+upload the files to the domain folder on cPanel. No Node.js, no npm, no Composer, no database, no build step.
 
-* Free-text search: the customer types the airport / lounge they want → **Cari Lounge** opens the booking form
-  with it pre-filled. No lounge database: **your team confirms availability** by email/WhatsApp.
-* 5-step booking: Airport & Lounge (free text) → Date (today…+90 days) → Contact → Passengers (dynamic adult/child names) → Review
-* Fixed prices: adult **Rp 200.000**, child under 12 **Rp 175.000** — recalculated on the server
-* "Single entry only" notice on homepage, pricing, booking form, payment page and every email
-* Payment by the original **QRIS** image (unmodified) + payment-proof upload
+**Homepage** → three services:
+
+| Service | Page | Price (server-side) | Order ID |
+|---|---|---|---|
+| Airport Lounge voucher | `airport-lounge.php` → `book.php` | Adult Rp 200.000 · child (<12) Rp 175.000 | `CLV-YYYYMMDD-XXXXX` |
+| Dummy Ticket (flight reservation) | `dummy-ticket.php` | Rp 100.000 per person per route (one way 100k, round trip 200k, multi-city 100k × routes) — same for adult/child/infant | `DTK-…` |
+| Dummy Hotel | `dummy-hotel.php` | Rp 100.000 per person per hotel (adults & children); infants free | `DHT-…` |
+
+* **Lounge:** free-text airport; link to loungefinder.loungekey.com for participating lounges/cafés/spas/sleeping pods;
+  big notice (booking review, payment page, email) that **vouchers are sent by the departure day at the latest**,
+  with a required acknowledgement checkbox; single-entry notice.
+* **Dummy ticket:** one way / round trip / multi-city (2–5 routes), dates today…+300 days in order, optional
+  preferred airline, usage date (H-1 recommended), adults/children/infants 0–9 (≥1 adult, infants ≤ adults),
+  per passenger full name, date of birth, passport number and expiry.
+* **Dummy hotel:** rooms/adults/children/infants 0–9 with room rule (per room 2 adults + 1 infant, or
+  1 adult + 1 child + 1 infant), 1–5 hotels/cities with optional preferred hotel, check-in today…+300,
+  check-out ≥ 1 night later and ≤ today+300, guest names.
 * **Every order is emailed** (PHPMailer over SMTP) to the customer, with a copy to
-  `airportloungevoucher@gmail.com` and `jasatiketmurah@gmail.com` — as **CC** or hidden **BCC**
-  (`'internal_copy' => 'bcc'`). The email *is* the order record.
-  Payment proofs are emailed as attachments.
-* Floating WhatsApp button (+62 852-1300-9993) on every page
+  `airportloungevoucher@gmail.com` and `jasatiketmurah@gmail.com` — as CC or hidden BCC
+  (`'internal_copy' => 'bcc'`). The email *is* the order record. Same QRIS payment page and proof upload for all.
+* Floating WhatsApp button (+62 852-1300-9993) on every page.
 
 👉 **Installation on cPanel: see [docs/DEPLOY-CPANEL.md](docs/DEPLOY-CPANEL.md).**
 
 ## Folder layout
 
 ```
-index.php book.php order.php terms.php privacy.php track.php 404.php
+index.php (services) · airport-lounge.php · book.php · dummy-ticket.php · dummy-hotel.php · order.php
+terms.php privacy.php track.php 404.php
 api/            order.php · proof.php · health.php
-assets/         css/app.css (pre-built) · js/app.js · js/booking.js · img/
+assets/         css/app.css (pre-built) · js/app.js · js/booking.js · js/dummy.js · img/
 qris/           qris-jasa-tiket-murah.jpg  (original file, byte-identical)
 app/            PRIVATE (blocked by .htaccess): bootstrap, config, lib/, lang/, templates/
 storage/        PRIVATE, writable: cache, rate limits, sent-email markers, logs
@@ -84,8 +94,8 @@ Earlier versions with a LoungeKey connector remain in the git history if API acc
 
 ## Development
 
-* Tests: `php dev/tests/run.php` (52 checks: pricing, dates, phone, validation, Order IDs, encryption,
-  email content, translations).
+* Tests: `php dev/tests/run.php` (71 checks: pricing for all services, dates, phone, validation incl. room
+  rules and route order, Order IDs, encryption, email content, translations).
 * CSS: classes are Tailwind; `assets/css/app.css` is pre-built and committed. To rebuild after changing
   classes: `cd dev && npm i tailwindcss@4 && node build-css.mjs` (developer machine only).
 * Text: `app/lang/id.php` and `app/lang/en.php` (keep the same keys).

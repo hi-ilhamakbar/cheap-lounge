@@ -23,23 +23,16 @@ if (!$order): ?>
 </div>
 <?php page_end(); exit; endif;
 
-$p = $order['price'];
-$amount = format_idr($p['totalAmount'], $lang);
-$details = array_filter([
-    $order['customer']['name'] ? [preg_replace('/ \(.*\)$/', '', t('booking.customerName')), $order['customer']['name']] : null,
-    [t('booking.whatsapp'), $order['customer']['whatsapp']],
-    [t('booking.email'), $order['customer']['email']],
-    [t('booking.airport'), $order['airport']],
-    [t('booking.lounge'), $order['lounge'] ?? t('lounge.chosenByTeam')],
-    [t('booking.visitDate'), format_visit_date($order['visitDate'], $lang)],
-    [t('booking.adults'), (string) $p['adultQty']],
-    [t('booking.children'), (string) $p['childQty']],
-]);
+$view = order_sections($order, $lang);
+$amount = format_idr((int) $order['price']['total'], $lang);
+$isLounge = $order['type'] === 'lounge';
 ?>
 <div class="container-page py-10 sm:py-14" data-order-code="<?= e($order['code']) ?>" data-order-token="<?= e($token) ?>">
-  <p class="eyebrow"><?= e(t('order.title')) ?></p>
+  <p class="eyebrow"><?= e(t('order.title')) ?> · <?= e($view['service']) ?></p>
   <h1 class="heading-display mt-2 text-2xl sm:text-3xl"><?= e(t('order.orderId')) ?>: <span class="font-mono tracking-wide"><?= e($order['code']) ?></span></h1>
-  <div class="mt-6 space-y-3"><?= notice(e(t('order.emailSent')) . ' <strong>' . e($order['customer']['email']) . '</strong>.') ?><?= notice(e(t('lounge.availability'))) ?></div>
+
+  <?php if ($isLounge): ?><div class="mt-6"><?= voucher_timing_notice() ?></div><?php endif ?>
+  <div class="mt-4"><?= notice(e(t('order.emailSent')) . ' <strong>' . e($order['customer']['email']) . '</strong>.') ?></div>
 
   <div class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
     <section class="card min-w-0 p-5 sm:p-7">
@@ -48,7 +41,7 @@ $details = array_filter([
         <p class="text-sm text-slate-600"><?= e(t('order.amountLabel')) ?></p>
         <div class="mt-1 flex flex-wrap items-center justify-between gap-3">
           <p class="text-3xl font-bold tracking-tight text-navy-900 tabular-nums sm:text-4xl"><?= e($amount) ?></p>
-          <button type="button" class="btn-ghost px-4 py-2" data-copy="<?= (int) $p['totalAmount'] ?>"><?= icon('copy', 'size-4') ?> <span data-copy-label><?= e(t('order.copyAmount')) ?></span></button>
+          <button type="button" class="btn-ghost px-4 py-2" data-copy="<?= (int) $order['price']['total'] ?>"><?= icon('copy', 'size-4') ?> <span data-copy-label><?= e(t('order.copyAmount')) ?></span></button>
         </div>
         <p class="mt-2 text-xs text-slate-500"><?= e(t('order.amountNote')) ?></p>
       </div>
@@ -70,7 +63,7 @@ $details = array_filter([
           <?php endforeach ?>
         </ol>
       </div>
-      <div class="mt-6"><?= single_entry_notice() ?></div>
+      <?php if ($isLounge): ?><div class="mt-6"><?= single_entry_notice() ?></div><?php endif ?>
 
       <div class="mt-8 border-t border-navy-100 pt-6">
         <h2 class="font-semibold"><?= e(t('order.uploadTitle')) ?></h2>
@@ -111,21 +104,18 @@ $details = array_filter([
 
       <div class="card p-5 sm:p-7">
         <h2 class="font-semibold"><?= e(t('order.details')) ?></h2>
-        <dl class="mt-4 space-y-2 text-sm">
-          <?php foreach ($details as [$k, $v]): ?>
-          <div class="grid grid-cols-[130px_1fr] gap-3 sm:grid-cols-[160px_1fr]"><dt class="text-slate-500"><?= e($k) ?></dt><dd class="break-words font-medium"><?= e($v) ?></dd></div>
+        <?php foreach ($view['sections'] as $sec): ?>
+        <h3 class="mt-5 text-xs font-bold uppercase tracking-[0.14em] text-accent-700"><?= e($sec['title']) ?></h3>
+        <dl class="mt-2 space-y-1.5 text-sm">
+          <?php foreach ($sec['rows'] as [$k, $v]): $sub = str_starts_with($k, '   '); ?>
+          <div class="grid grid-cols-[140px_1fr] gap-3 sm:grid-cols-[170px_1fr] <?= $sub ? 'text-xs' : '' ?>"><dt class="<?= $sub ? 'pl-3 text-slate-400' : 'text-slate-500' ?>"><?= e(trim($k)) ?></dt><dd class="break-words <?= $sub ? 'text-slate-700' : 'font-medium' ?>"><?= e($v) ?></dd></div>
           <?php endforeach ?>
         </dl>
-        <div class="mt-5 space-y-3">
-          <?php if ($order['adultNames']): ?>
-          <div><p class="text-xs font-bold tracking-[0.14em] text-navy-700"><?= e(t('booking.adultSection')) ?></p><ol class="mt-1.5 list-decimal pl-5 text-sm"><?php foreach ($order['adultNames'] as $n): ?><li><?= e($n) ?></li><?php endforeach ?></ol></div>
-          <?php endif; if ($order['childNames']): ?>
-          <div><p class="text-xs font-bold tracking-[0.14em] text-accent-700"><?= e(t('booking.childSection')) ?></p><ol class="mt-1.5 list-decimal pl-5 text-sm"><?php foreach ($order['childNames'] as $n): ?><li><?= e($n) ?></li><?php endforeach ?></ol></div>
-          <?php endif ?>
-        </div>
-        <dl class="mt-5 space-y-2 border-t border-navy-100 pt-4 text-sm">
-          <?php if ($p['adultQty']): ?><div class="flex justify-between"><dt class="text-slate-600"><?= e(t('booking.adultLine') . " {$p['adultQty']} × " . format_idr($p['adultUnitPrice'], $lang)) ?></dt><dd class="tabular-nums"><?= e(format_idr($p['adultSubtotal'], $lang)) ?></dd></div><?php endif ?>
-          <?php if ($p['childQty']): ?><div class="flex justify-between"><dt class="text-slate-600"><?= e(t('booking.childLine') . " {$p['childQty']} × " . format_idr($p['childUnitPrice'], $lang)) ?></dt><dd class="tabular-nums"><?= e(format_idr($p['childSubtotal'], $lang)) ?></dd></div><?php endif ?>
+        <?php endforeach ?>
+        <dl class="mt-6 space-y-2 border-t border-navy-100 pt-4 text-sm">
+          <?php foreach ($order['price']['lines'] as $l): ?>
+          <div class="flex justify-between gap-4"><dt class="text-slate-600"><?= e(price_line_label($l, $lang)) ?></dt><dd class="shrink-0 tabular-nums"><?= e(price_line_amount($l, $lang)) ?></dd></div>
+          <?php endforeach ?>
           <div class="flex justify-between pt-1 text-base font-bold"><dt><?= e(t('booking.total')) ?></dt><dd class="tabular-nums"><?= e($amount) ?></dd></div>
         </dl>
       </div>

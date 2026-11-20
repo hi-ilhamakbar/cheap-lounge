@@ -38,6 +38,7 @@ require_once APP_ROOT . '/lib/phone.php';
 require_once APP_ROOT . '/lib/validation.php';
 require_once APP_ROOT . '/lib/order_token.php';
 require_once APP_ROOT . '/lib/ratelimit.php';
+require_once APP_ROOT . '/lib/order_view.php';
 require_once APP_ROOT . '/lib/email_templates.php';
 require_once APP_ROOT . '/lib/mailer.php';
 require_once APP_ROOT . '/lib/orders.php';
