@@ -7,7 +7,7 @@
   var I = window.I18N, LANG = window.LANG, CL = window.CL, esc = CL.esc, tk = CL.tk;
   var F = I.form, T = I.ticket, H = I.hotel;
   var WINDOW = 300, MAX_ROUTES = 5, MAX_STAYS = 5, PRICE = 100000;
-  var DRAFT = "clv-" + KIND + "-draft-v2";
+  var DRAFT = "clv-" + KIND + "-draft-v3";
 
   /* ── dates ─────────────────────────────────────────────── */
   function pad(n) { return (n < 10 ? "0" : "") + n; }
@@ -36,7 +36,7 @@
 
   /* ── state ─────────────────────────────────────────────── */
   var S = KIND === "ticket"
-    ? { tripType: "oneway", routes: [{ from: "", to: "", date: "" }, { from: "", to: "", date: "" }], returnDate: "", airline: "", usageDate: "", adults: 1, children: 0, infants: 0, pp: { adult: [], child: [], infant: [] }, whatsapp: "+62 ", email: "", customerName: "" }
+    ? { tripType: "oneway", routes: [{ from: "", to: "", date: "" }, { from: "", to: "", date: "" }], returnDate: "", note: "", usageDate: "", adults: 1, children: 0, infants: 0, pp: { adult: [], child: [], infant: [] }, whatsapp: "+62 ", email: "", customerName: "" }
     : { rooms: 1, adults: 1, children: 0, infants: 0, stays: [{ city: "", hotel: "", checkIn: "", checkOut: "" }], pp: { adult: [], child: [], infant: [] }, whatsapp: "+62 ", email: "", customerName: "" };
   try { var dr = JSON.parse(sessionStorage.getItem(DRAFT) || "null"); if (dr) for (var k in S) if (k in dr) S[k] = dr[k]; } catch (e) {}
   function save() { try { sessionStorage.setItem(DRAFT, JSON.stringify(S)); } catch (e) {} }
@@ -44,6 +44,27 @@
 
   var $ = function (sel, el) { return (el || form).querySelector(sel); };
   var $$ = function (sel, el) { return Array.prototype.slice.call((el || form).querySelectorAll(sel)); };
+
+  /* ── nationality options (alphabetical in the page language, Indonesia default) ── */
+  var COUNTRY_OPTS = "";
+  if (window.COUNTRIES) {
+    var coll = (window.Intl && Intl.Collator) ? new Intl.Collator(LANG === "en" ? "en" : "id", { sensitivity: "base" }) : null;
+    COUNTRY_OPTS = window.COUNTRIES.slice().sort(function (a, b) { return coll ? coll.compare(a[1], b[1]) : (a[1] < b[1] ? -1 : 1); })
+      .map(function (c) { return '<option value="' + c[0] + '">' + esc(c[1]) + "</option>"; }).join("");
+  }
+  var VALID_CODES = {}; (window.COUNTRIES || []).forEach(function (c) { VALID_CODES[c[0]] = 1; });
+
+  /* Full years of age on a date; adult ≥ 12, child 2–11, infant < 2 — on the departure date. */
+  function ageOn(dob, on) {
+    var a = dob.split("-").map(Number), b = on.split("-").map(Number);
+    return b[0] - a[0] - ((b[1] < a[1] || (b[1] === a[1] && b[2] < a[2])) ? 1 : 0);
+  }
+  function ageErr(type, age) {
+    if (type === "adult") return age >= 12 ? null : "errors.ageAdult";
+    if (type === "child") return age >= 2 && age < 12 ? null : "errors.ageChild";
+    return age >= 0 && age < 2 ? null : "errors.ageInfant";
+  }
+  function departDate() { var r = ticketRoutes()[0]; return r && validISO(r.date) ? r.date : null; }
 
   /* ── people (passengers / guests) ──────────────────────── */
   /** [{type, j}] in server order: adults, then children, then infants. Data lives in S.pp[type][j]. */
@@ -67,12 +88,18 @@
       var type = x.type, p = person(x);
       var head = '<div class="flex items-center justify-between gap-3"><span class="font-semibold">' + esc(fmt(KIND === "ticket" ? T.paxN : H.guestN, { n: i + 1 })) + '</span><span class="badge ' + TYPE_STYLE[type] + '">' + esc(TYPE_LABEL[type]) + "</span></div>";
       var fid = function (k) { return "p" + i + "-" + k; };
+      if (KIND === "ticket" && !p.nationality) p.nationality = "ID"; // default Indonesia
+      var select = function (k, label, options, value) {
+        return '<div><label for="' + fid(k) + '" class="field-label">' + esc(label) + ' *</label><select id="' + fid(k) + '" class="field-input" data-pt="' + type + '" data-pj="' + x.j + '" data-pk="' + k + '" data-val="' + esc(value) + '">' + options + '</select><p class="field-error hidden" data-error="' + field + "." + i + "." + k + '"></p></div>';
+      };
       var input = function (k, label, attrs) {
         return '<div><label for="' + fid(k) + '" class="field-label">' + esc(label) + ' *</label><input id="' + fid(k) + '" class="field-input" data-pt="' + type + '" data-pj="' + x.j + '" data-pk="' + k + '" value="' + esc(p[k] || "") + '" ' + attrs + '><p class="field-error hidden" data-error="' + field + "." + i + "." + k + '"></p></div>';
       };
       if (KIND === "ticket") {
         h += '<div class="rounded-2xl border border-navy-100 p-4 sm:p-5">' + head + '<div class="mt-4 grid gap-4 sm:grid-cols-2">' +
           '<div class="sm:col-span-2">' + input("name", F.fullName, 'type="text" maxlength="100" autocomplete="off"') + "</div>" +
+          select("gender", T.gender, '<option value="">' + esc(T.choose) + '</option><option value="M">' + esc(T.male) + '</option><option value="F">' + esc(T.female) + "</option>", p.gender || "") +
+          select("nationality", T.nationality, COUNTRY_OPTS, p.nationality || "ID") +
           input("dob", F.dob, 'type="date" max="' + today + '" min="1900-01-01"') +
           input("passport", F.passportNo, 'type="text" maxlength="20" autocomplete="off" style="text-transform:uppercase"') +
           input("passportExpiry", F.passportExpiry, 'type="date" min="' + addDays(today, 1) + '"') +
@@ -85,8 +112,9 @@
     if (box.getAttribute("data-sig") !== sig) {
       box.innerHTML = h;
       box.setAttribute("data-sig", sig);
-      $$("input[data-pt]", box).forEach(function (inp) {
-        inp.addEventListener("input", function () { person({ type: inp.getAttribute("data-pt"), j: +inp.getAttribute("data-pj") })[inp.getAttribute("data-pk")] = inp.value; save(); });
+      $$("select[data-pt]", box).forEach(function (sel) { sel.value = sel.getAttribute("data-val"); });
+      $$("input[data-pt],select[data-pt]", box).forEach(function (inp) {
+        inp.addEventListener(inp.tagName === "SELECT" ? "change" : "input", function () { person({ type: inp.getAttribute("data-pt"), j: +inp.getAttribute("data-pj") })[inp.getAttribute("data-pk")] = inp.value; save(); });
       });
     }
   }
@@ -101,7 +129,7 @@
       var r = S.routes[i];
       var title = S.tripType === "multicity" ? fmt(T.route, { n: i + 1 }) : T.route.replace(" {n}", "");
       var removable = S.tripType === "multicity" && n > 2;
-      var dateLabel = S.tripType === "roundtrip" ? T.depart : T.date;
+      var dateLabel = T.departDate;
       var minDate = i > 0 && validISO(S.routes[i - 1].date) ? S.routes[i - 1].date : today;
       h += '<div class="rounded-2xl border border-navy-100 p-4 sm:p-5"><div class="mb-3 flex items-center justify-between"><span class="text-sm font-bold uppercase tracking-wide text-navy-700">' + esc(title) + "</span>" +
         (removable ? '<button type="button" class="text-xs font-semibold text-accent-600 hover:underline" data-remove-route="' + i + '">' + esc(F.remove) + "</button>" : "") + "</div>" +
@@ -109,7 +137,7 @@
         field("routes." + i + ".from", T.from, '<input id="r' + i + 'f" class="field-input" maxlength="80" placeholder="' + esc(T.fromPh) + '" data-r="' + i + '" data-rk="from" value="' + esc(r.from) + '">') +
         field("routes." + i + ".to", T.to, '<input id="r' + i + 't" class="field-input" maxlength="80" placeholder="' + esc(T.toPh) + '" data-r="' + i + '" data-rk="to" value="' + esc(r.to) + '">') +
         field("routes." + i + ".date", dateLabel, '<input id="r' + i + 'd" type="date" class="field-input" min="' + minDate + '" max="' + maxDate + '" data-r="' + i + '" data-rk="date" value="' + esc(r.date) + '">') +
-        (S.tripType === "roundtrip" ? field("routes.1.date", T["return"], '<input id="r0ret" type="date" class="field-input" min="' + (validISO(r.date) ? r.date : today) + '" max="' + maxDate + '" data-return value="' + esc(S.returnDate) + '">') : "") +
+        (S.tripType === "roundtrip" ? field("routes.1.date", T.returnDate, '<input id="r0ret" type="date" class="field-input" min="' + (validISO(r.date) ? r.date : today) + '" max="' + maxDate + '" data-return value="' + esc(S.returnDate) + '">') : "") +
         "</div></div>";
     }
     box.innerHTML = h;
@@ -210,12 +238,18 @@
       if (!inWindow(S.usageDate)) e.usageDate = "errors.dateRange300";
       if (S.adults < 1) e.adults = "errors.adultRequired";
       if (S.infants > S.adults) e.infants = "errors.infantsPerAdult";
+      var dep = departDate();
+      if (String(S.note || "").length > 500) e.note = "errors.noteTooLong";
       peopleTypes().forEach(function (x, i) {
         var p = person(x);
         var ne = nameErr(p.name); if (ne) e["passengers." + i + ".name"] = ne;
+        if (p.gender !== "M" && p.gender !== "F") e["passengers." + i + ".gender"] = "errors.genderRequired";
+        if (!VALID_CODES[p.nationality]) e["passengers." + i + ".nationality"] = "errors.nationalityRequired";
         if (!validISO(p.dob) || p.dob > today || p.dob < "1900-01-01") e["passengers." + i + ".dob"] = "errors.dobInvalid";
+        else if (dep && ageErr(x.type, ageOn(p.dob, dep))) e["passengers." + i + ".dob"] = ageErr(x.type, ageOn(p.dob, dep));
         if (!/^[A-Z0-9]{5,20}$/.test(String(p.passport || "").toUpperCase().replace(/[\s-]+/g, ""))) e["passengers." + i + ".passport"] = "errors.passportInvalid";
         if (!validISO(p.passportExpiry) || p.passportExpiry <= today) e["passengers." + i + ".passportExpiry"] = "errors.passportExpiryInvalid";
+        else if (dep && p.passportExpiry < addDays(dep, 180)) e["passengers." + i + ".passportExpiry"] = "errors.passport180";
       });
     } else {
       if (S.adults < 1) e.adults = "errors.adultRequired";
@@ -263,9 +297,9 @@
     if (KIND === "ticket") {
       base.tripType = S.tripType;
       base.routes = ticketRoutes().map(function (r) { return { from: clean(r.from), to: clean(r.to), date: r.date }; });
-      base.airline = clean(S.airline) || undefined;
+      base.note = String(S.note || "").trim() || undefined;
       base.usageDate = S.usageDate;
-      base.passengers = peopleTypes().map(person).map(function (p) { return { name: clean(p.name), dob: p.dob || "", passport: String(p.passport || "").toUpperCase().replace(/[\s-]+/g, ""), passportExpiry: p.passportExpiry || "" }; });
+      base.passengers = peopleTypes().map(person).map(function (p) { return { name: clean(p.name), gender: p.gender || "", nationality: p.nationality || "", dob: p.dob || "", passport: String(p.passport || "").toUpperCase().replace(/[\s-]+/g, ""), passportExpiry: p.passportExpiry || "" }; });
     } else {
       base.rooms = S.rooms;
       base.stays = S.stays.map(function (s) { return { city: clean(s.city), hotel: clean(s.hotel) || undefined, checkIn: s.checkIn, checkOut: s.checkOut }; });
@@ -312,7 +346,7 @@
   });
 
   /* ── wire up ───────────────────────────────────────────── */
-  ["whatsapp", "email", "customerName", "airline", "usageDate"].forEach(function (k) {
+  ["whatsapp", "email", "customerName", "note", "usageDate"].forEach(function (k) {
     var inp = $('[data-f="' + k + '"]');
     if (!inp) return;
     inp.value = S[k] == null ? "" : S[k];

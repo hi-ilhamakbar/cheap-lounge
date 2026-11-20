@@ -15,7 +15,7 @@ upload the files to the domain folder on cPanel. No Node.js, no npm, no Composer
   big notice (booking review, payment page, email) that **vouchers are sent by the departure day at the latest**,
   with a required acknowledgement checkbox; single-entry notice.
 * **Dummy ticket:** one way / round trip / multi-city (2–5 routes), dates today…+300 days in order, optional
-  preferred airline, usage date (H-1 recommended), adults/children/infants 0–9 (≥1 adult, infants ≤ adults),
+  usage date (H-1 recommended), optional notes, adults/children/infants 0–9 (≥1 adult, infants ≤ adults),
   per passenger full name, date of birth, passport number and expiry.
 * **Dummy hotel:** rooms/adults/children/infants 0–9 with room rule (per room 2 adults + 1 infant, or
   1 adult + 1 child + 1 infant), 1–5 hotels/cities with optional preferred hotel, check-in today…+300,

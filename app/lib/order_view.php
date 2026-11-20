@@ -33,16 +33,19 @@ function order_sections(array $o, string $lang): array
         $tripLabel = ['oneway' => t('ticket.oneWay', $lang), 'roundtrip' => t('ticket.roundTrip', $lang), 'multicity' => t('ticket.multiCity', $lang)][$d['tripType']];
         $rows = [[t('ticket.tripType', $lang), $tripLabel]];
         foreach ($d['routes'] as $i => $r) {
-            $label = $d['tripType'] === 'roundtrip' ? ($i === 0 ? t('ticket.depart', $lang) : t('ticket.return', $lang)) : tf(t('ticket.route', $lang), ['n' => $i + 1]);
+            $label = $d['tripType'] === 'roundtrip' ? ($i === 0 ? t('ticket.departDate', $lang) : t('ticket.returnDate', $lang)) : ($d['tripType'] === 'oneway' ? t('ticket.departDate', $lang) : tf(t('ticket.route', $lang), ['n' => $i + 1]));
             $rows[] = [$label, "{$r['from']} → {$r['to']} · " . format_visit_date($r['date'], $lang)];
         }
-        $rows[] = [t('ticket.airlineLabel', $lang), $d['airline'] ?? t('ticket.anyAirline', $lang)];
+        if (!empty($d['airline'])) $rows[] = [t('ticket.airlineLabel', $lang), $d['airline']]; // older orders
         $rows[] = [t('ticket.usageLabel', $lang), format_visit_date($d['usageDate'], $lang)];
+        if (!empty($d['note'])) $rows[] = [t('ticket.noteLabel', $lang), $d['note']];
         $sections[] = ['title' => t('ticket.service', $lang), 'rows' => $rows];
         $typeLabel = ['adult' => t('ticket.typeAdult', $lang), 'child' => t('ticket.typeChild', $lang), 'infant' => t('ticket.typeInfant', $lang)];
         $pax = [[t('form.adults', $lang) . ' / ' . t('form.children', $lang) . ' / ' . t('form.infants', $lang), "{$d['adults']} / {$d['children']} / {$d['infants']}"]];
         foreach ($d['passengers'] as $i => $p) {
             $pax[] = [tf(t('ticket.paxN', $lang), ['n' => $i + 1]) . ' · ' . $typeLabel[$p['type']], $p['name']];
+            if (!empty($p['gender'])) $pax[] = ['   ' . t('ticket.gender', $lang), $p['gender'] === 'M' ? t('ticket.male', $lang) : t('ticket.female', $lang)];
+            if (!empty($p['nationality'])) $pax[] = ['   ' . t('ticket.nationality', $lang), country_name($p['nationality'], $lang)];
             $pax[] = ['   ' . t('form.dob', $lang), format_visit_date($p['dob'], $lang)];
             $pax[] = ['   ' . t('form.passportNo', $lang), $p['passport']];
             $pax[] = ['   ' . t('form.passportExpiry', $lang), format_visit_date($p['passportExpiry'], $lang)];

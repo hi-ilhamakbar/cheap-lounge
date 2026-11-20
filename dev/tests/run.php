@@ -51,10 +51,29 @@ check('sanitize', sanitize_text("  a\x00b <c>  d ") === 'a b c d');
 
 // Dummy ticket
 $today = local_today_from_offset(time(), -420); $dd = fn ($n) => add_days_iso($today, $n);
-$pp = fn ($n) => ['name' => $n, 'dob' => '1990-01-01', 'passport' => 'c 123-4567', 'passportExpiry' => $dd(400)];
-$tk = ['type' => 'ticket', 'tripType' => 'roundtrip', 'routes' => [['from' => 'Jakarta (CGK)', 'to' => 'Tokyo (NRT)', 'date' => $dd(30)], ['from' => 'Tokyo (NRT)', 'to' => 'Jakarta (CGK)', 'date' => $dd(37)]], 'usageDate' => $dd(5), 'adults' => 2, 'children' => 0, 'infants' => 1, 'passengers' => [$pp('Budi Santoso'), $pp('Siti Aminah'), $pp('Bayi Kecil')]] + $valid;
+$pp = fn ($n, $dob = '1990-01-01') => ['name' => $n, 'gender' => 'M', 'nationality' => 'ID', 'dob' => $dob, 'passport' => 'c 123-4567', 'passportExpiry' => $dd(400)];
+$infDob = add_days_iso($dd(30), -365);   // 1 year old on departure
+$tk = ['type' => 'ticket', 'tripType' => 'roundtrip', 'routes' => [['from' => 'Jakarta (CGK)', 'to' => 'Tokyo (NRT)', 'date' => $dd(30)], ['from' => 'Tokyo (NRT)', 'to' => 'Jakarta (CGK)', 'date' => $dd(37)]], 'usageDate' => $dd(5), 'adults' => 2, 'children' => 0, 'infants' => 1, 'passengers' => [$pp('Budi Santoso'), $pp('Siti Aminah'), $pp('Bayi Kecil', $infDob)]] + $valid;
 [$d, $e] = validate_order_input($tk);
-check('valid round-trip ticket accepted', $e === [] && $d['data']['passengers'][0]['passport'] === 'C1234567' && $d['data']['airline'] === null);
+check('valid round-trip ticket accepted', $e === [] && $d['data']['passengers'][0]['passport'] === 'C1234567' && !isset($d['data']['airline']) && $d['data']['passengers'][0]['nationality'] === 'ID');
+[$d2, $e] = validate_order_input(['note' => 'Garuda kalau bisa', 'airline' => 'ignored'] + $tk);
+check('optional note kept, airline field ignored', $e === [] && $d2['data']['note'] === 'Garuda kalau bisa' && !isset($d2['data']['airline']));
+[, $e] = validate_order_input(['note' => str_repeat('x', 501)] + $tk);
+check('note max 500', ($e['note'] ?? '') === 'errors.noteTooLong');
+$dep = $dd(30);
+$tkAge = fn (array $pax) => validate_order_input(['passengers' => $pax] + $tk)[1];
+$e = $tkAge([$pp('Budi Santoso', add_days_iso($dep, -12 * 365 + 10)), $pp('Siti Aminah'), $pp('Bayi Kecil', $infDob)]);
+check('adult must be 12+ on departure date', ($e['passengers.0.dob'] ?? '') === 'errors.ageAdult');
+$e = $tkAge([$pp('Budi Santoso'), $pp('Siti Aminah'), $pp('Bayi Kecil', add_days_iso($dep, -2 * 365 - 5))]);
+check('infant must be under 2 on departure date', ($e['passengers.2.dob'] ?? '') === 'errors.ageInfant');
+$e = validate_order_input(['adults' => 1, 'children' => 1, 'infants' => 0, 'passengers' => [$pp('Budi Santoso'), $pp('Anak Kecil', add_days_iso($dep, -365))]] + $tk)[1];
+check('child must be 2–11 on departure date', ($e['passengers.1.dob'] ?? '') === 'errors.ageChild');
+// turns 2 between booking and flight → still accepted as child (age counted at departure)
+$e = validate_order_input(['adults' => 1, 'children' => 1, 'infants' => 0, 'passengers' => [$pp('Budi Santoso'), $pp('Anak Kecil', add_days_iso(add_days_iso($dep, -2 * 366), 0))]] + $tk)[1];
+check('age is counted on departure, not booking date', !isset($e['passengers.1.dob']));
+$e = $tkAge([['passportExpiry' => add_days_iso($dep, 179)] + $pp('Budi Santoso'), ['gender' => 'X', 'nationality' => 'ZZ'] + $pp('Siti Aminah'), $pp('Bayi Kecil', $infDob)]);
+check('passport ≥ 180 days after departure; gender + nationality required', ($e['passengers.0.passportExpiry'] ?? '') === 'errors.passport180' && ($e['passengers.1.gender'] ?? '') === 'errors.genderRequired' && ($e['passengers.1.nationality'] ?? '') === 'errors.nationalityRequired');
+check('country list complete', count(country_list()) > 240 && country_name('NL', 'id') === 'Belanda' && country_name('NL', 'en') === 'Netherlands');
 check('ticket price: 3 pax round trip = 600,000', price_lines_ticket(2, 3)['total'] === 600000);
 check('ticket price: 1 pax one way = 100,000; multi-city 4 routes = 400,000', price_lines_ticket(1, 1)['total'] === 100000 && price_lines_ticket(4, 1)['total'] === 400000);
 [, $e] = validate_order_input(['tripType' => 'oneway'] + $tk);
@@ -65,9 +84,9 @@ check('route dates must be in order', ($e['routes.1.date'] ?? '') === 'errors.da
 check('300-day window for routes and usage date', ($e['routes.0.date'] ?? '') === 'errors.dateRange300' && ($e['usageDate'] ?? '') === 'errors.dateRange300');
 [, $e] = validate_order_input(['tripType' => 'multicity', 'routes' => array_fill(0, 6, ['from' => 'A1', 'to' => 'B1', 'date' => $dd(10)])] + $tk);
 check('multi-city max 5 routes', ($e['routes'] ?? '') === 'errors.tooManyRoutes');
-[, $e] = validate_order_input(['adults' => 0, 'infants' => 1, 'passengers' => [$pp('Bayi Kecil')]] + $tk);
+[, $e] = validate_order_input(['adults' => 0, 'infants' => 1, 'passengers' => [$pp('Bayi Kecil', $infDob)]] + $tk);
 check('ticket needs an adult', ($e['adults'] ?? '') === 'errors.adultRequired');
-[, $e] = validate_order_input(['passengers' => [['name' => 'A B', 'dob' => $dd(1), 'passport' => '12', 'passportExpiry' => $today], $pp('Siti Aminah'), $pp('Bayi Kecil')]] + $tk);
+[, $e] = validate_order_input(['passengers' => [['name' => 'A B', 'gender' => 'F', 'nationality' => 'ID', 'dob' => $dd(1), 'passport' => '12', 'passportExpiry' => $today], $pp('Siti Aminah'), $pp('Bayi Kecil', $infDob)]] + $tk);
 check('dob / passport / expiry checks', ($e['passengers.0.dob'] ?? '') === 'errors.dobInvalid' && ($e['passengers.0.passport'] ?? '') === 'errors.passportInvalid' && ($e['passengers.0.passportExpiry'] ?? '') === 'errors.passportExpiryInvalid');
 
 // Dummy hotel
@@ -116,7 +135,7 @@ $m2 = render_order_email('PAYMENT_SUBMITTED', ['lang' => 'en', 'status' => 'PAYM
 check('proof email (en)', str_contains($m2['subject'], 'Payment Proof Received') && str_contains($m2['text'], 'p.jpg (attached)') && !str_contains($m2['text'], 'Payment instructions'));
 $tkData = validate_order_input($tk)[0]['data'];
 $m3 = render_order_email('ORDER_CONFIRMATION', ['v' => 3, 'type' => 'ticket', 'code' => 'DTK-20261118-AB2CD', 'lang' => 'id', 'customer' => $o['customer'], 'data' => $tkData, 'price' => price_lines_ticket(2, 3), 'status' => 'PENDING_PAYMENT', 'orderUrl' => 'https://x']);
-check('ticket email', $m3['subject'] === 'Dummy Ticket Order Confirmation – DTK-20261118-AB2CD' && str_contains($m3['text'], 'Pulang pergi') && str_contains($m3['text'], 'C1234567') && str_contains($m3['text'], 'Rp 600.000') && !str_contains($m3['text'], 'hari H'));
+check('ticket email', $m3['subject'] === 'Dummy Ticket Order Confirmation – DTK-20261118-AB2CD' && str_contains($m3['text'], 'Pulang pergi') && str_contains($m3['text'], 'Tanggal keberangkatan') && str_contains($m3['text'], 'Tanggal kepulangan') && str_contains($m3['text'], 'Kewarganegaraan: Indonesia') && str_contains($m3['text'], 'Jenis kelamin: Laki-laki') && str_contains($m3['text'], 'C1234567') && str_contains($m3['text'], 'Rp 600.000') && !str_contains($m3['text'], 'hari H') && !str_contains($m3['text'], 'Maskapai'));
 $htData = validate_order_input($ht)[0]['data'];
 $m4 = render_order_email('ORDER_CONFIRMATION', ['v' => 3, 'type' => 'hotel', 'code' => 'DHT-20261118-AB2CD', 'lang' => 'en', 'customer' => $o['customer'], 'data' => $htData, 'price' => price_lines_hotel(2, 2, 1, 1), 'status' => 'PENDING_PAYMENT', 'orderUrl' => 'https://x']);
 check('hotel email', $m4['subject'] === 'Dummy Hotel Order Confirmation – DHT-20261118-AB2CD' && str_contains($m4['text'], 'Paris — Ibis') && str_contains($m4['text'], 'Rome — Chosen by our team') && str_contains($m4['text'], '3 nights') && str_contains($m4['text'], 'Free'));

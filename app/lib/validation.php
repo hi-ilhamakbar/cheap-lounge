@@ -101,6 +101,37 @@ function validate_lounge_input(array $in, array &$err): array
     return $out;
 }
 
+/** Full years of age on a given date (YYYY-MM-DD). */
+function age_on(string $dob, string $on): int
+{
+    [$y1, $m1, $d1] = array_map('intval', explode('-', $dob));
+    [$y2, $m2, $d2] = array_map('intval', explode('-', $on));
+    return $y2 - $y1 - (($m2 < $m1 || ($m2 === $m1 && $d2 < $d1)) ? 1 : 0);
+}
+
+/** Adult ≥ 12, child 2–11, infant < 2 — on the departure date. */
+function age_category_error(string $type, int $age): ?string
+{
+    return match ($type) {
+        'adult' => $age >= ADULT_MIN_AGE ? null : 'errors.ageAdult',
+        'child' => $age >= INFANT_MAX_AGE_EXCLUSIVE && $age < ADULT_MIN_AGE ? null : 'errors.ageChild',
+        'infant' => $age >= 0 && $age < INFANT_MAX_AGE_EXCLUSIVE ? null : 'errors.ageInfant',
+    };
+}
+
+/** @return array<string, array{0:string,1:string}> ISO code => [Indonesian name, English name] */
+function country_list(): array
+{
+    static $c = null;
+    return $c ??= require APP_ROOT . '/data/countries.php';
+}
+
+function country_name(string $code, string $lang): string
+{
+    $c = country_list()[$code] ?? null;
+    return $c ? $c[$lang === 'en' ? 1 : 0] : $code;
+}
+
 /** Dummy ticket (flight reservation). */
 function validate_ticket_input(array $in, array &$err, string $today): array
 {
@@ -131,9 +162,10 @@ function validate_ticket_input(array $in, array &$err, string $today): array
     }
     $out['routes'] = $clean;
 
-    $airline = clean_text_field($in['airline'] ?? '', 80);
-    if (mb_strlen($airline) > 80) $err['airline'] = 'errors.textTooLong';
-    $out['airline'] = $airline !== '' ? $airline : null;
+    // Preferred airline is no longer a field — customers write wishes in the optional note.
+    $note = mb_substr(trim(preg_replace('/[\x00-\x09\x0B-\x1F\x7F<>]/u', ' ', is_string($in['note'] ?? null) ? $in['note'] : '') ?? ''), 0, 501);
+    if (mb_strlen($note) > 500) $err['note'] = 'errors.noteTooLong';
+    $out['note'] = $note !== '' ? $note : null;
 
     $usage = (string) ($in['usageDate'] ?? '');
     if (!validate_date_in($usage, $today, $max)) $err['usageDate'] = 'errors.dateRange300';
@@ -151,18 +183,27 @@ function validate_ticket_input(array $in, array &$err, string $today): array
     $expected = array_merge(array_fill(0, $counts['adults'], 'adult'), array_fill(0, $counts['children'], 'child'), array_fill(0, $counts['infants'], 'infant'));
     $pax = is_array($in['passengers'] ?? null) ? array_values($in['passengers']) : [];
     if (count($pax) !== count($expected)) $err['passengers'] = 'errors.nameRequired';
+    // Ages and passport validity are checked against the first departure date (not the booking date).
+    $depart = isset($clean[0]) && is_valid_iso_date($clean[0]['date']) ? $clean[0]['date'] : null;
+    $countries = country_list();
     $cleanPax = [];
     foreach ($expected as $i => $type) {
         $p = is_array($pax[$i] ?? null) ? $pax[$i] : [];
         [$name, $e] = validate_passenger_name($p['name'] ?? '');
         if ($e) $err["passengers.$i.name"] = $e;
+        $gender = $p['gender'] ?? '';
+        if (!in_array($gender, ['M', 'F'], true)) $err["passengers.$i.gender"] = 'errors.genderRequired';
+        $nat = strtoupper((string) ($p['nationality'] ?? ''));
+        if (!isset($countries[$nat])) $err["passengers.$i.nationality"] = 'errors.nationalityRequired';
         $dob = (string) ($p['dob'] ?? '');
         if (!is_valid_iso_date($dob) || $dob > $today || $dob < '1900-01-01') $err["passengers.$i.dob"] = 'errors.dobInvalid';
+        elseif ($depart && ($ageErr = age_category_error($type, age_on($dob, $depart)))) $err["passengers.$i.dob"] = $ageErr;
         $pp = strtoupper(preg_replace('/[\s-]+/', '', (string) ($p['passport'] ?? '')));
         if (!preg_match('/^[A-Z0-9]{5,20}$/', $pp)) $err["passengers.$i.passport"] = 'errors.passportInvalid';
         $exp = (string) ($p['passportExpiry'] ?? '');
         if (!is_valid_iso_date($exp) || $exp <= $today) $err["passengers.$i.passportExpiry"] = 'errors.passportExpiryInvalid';
-        $cleanPax[] = ['type' => $type, 'name' => $name, 'dob' => $dob, 'passport' => $pp, 'passportExpiry' => $exp];
+        elseif ($depart && $exp < add_days_iso($depart, PASSPORT_MIN_VALID_DAYS)) $err["passengers.$i.passportExpiry"] = 'errors.passport180';
+        $cleanPax[] = ['type' => $type, 'name' => $name, 'gender' => $gender, 'nationality' => $nat, 'dob' => $dob, 'passport' => $pp, 'passportExpiry' => $exp];
     }
     $out['passengers'] = $cleanPax;
     return $out;

@@ -17,7 +17,7 @@ All endpoints are plain PHP files in `api/`. Errors: `{"ok":false,"error":"error
  "childNames":["Rizky Putra"],"acceptTerms":true}
 ```
 Dummy ticket (`type: "ticket"`): `tripType` (`oneway`|`roundtrip`|`multicity`), `routes` [{from,to,date}]
-(1, 2 or 2–5), `airline?`, `usageDate`, `adults`, `children`, `infants`, `passengers` [{name,dob,passport,passportExpiry}]
+(1, 2 or 2–5), `note?` (≤500), `usageDate`, `adults`, `children`, `infants`, `passengers` [{name,gender: M|F,nationality: ISO-3166 alpha-2,dob,passport,passportExpiry}] — age checked on the first departure date (adult ≥12, child 2–11, infant <2), passport valid ≥180 days after departure
 in order adults → children → infants.
 
 Dummy hotel (`type: "hotel"`): `rooms`, `adults`, `children`, `infants`, `stays` [{city,hotel?,checkIn,checkOut}] (1–5),

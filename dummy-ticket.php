@@ -8,6 +8,10 @@ $lang = current_lang();
 $p100 = format_idr(TICKET_PRICE_PER_ROUTE_IDR, $lang);
 $p200 = format_idr(2 * TICKET_PRICE_PER_ROUTE_IDR, $lang);
 page_start(t('ticket.service'), ['scripts' => ['assets/js/dummy.js']]);
+// Nationality options for the passenger drop-downs: [code, name] — sorted alphabetically in the browser.
+$countries = [];
+foreach (country_list() as $code => [$nameId, $nameEn]) $countries[] = [$code, $lang === 'en' ? $nameEn : $nameId];
+echo '<script>window.COUNTRIES=' . json_encode($countries, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) . ';</script>';
 echo dummy_hero('ticket', 'plane', [
     [t('ticket.priceOneWay'), $p100, t('form.perPerson')],
     [t('ticket.priceRoundTrip'), $p200, t('form.perPerson')],
@@ -24,17 +28,18 @@ $trip .= '</div><p class="field-error hidden" data-error="tripType"></p>'
     . '<button type="button" class="btn-ghost mt-4 hidden px-4 py-2" data-add-route>' . e(t('ticket.addRoute')) . '</button>'
     . '<p class="field-hint" data-route-hint>' . e(t('ticket.dateHint')) . '</p>';
 
-$prefs = '<div class="grid gap-5 sm:grid-cols-2">'
-    . text_field('f-airline', t('ticket.airline'), 'type="text" maxlength="80" placeholder="Garuda Indonesia, Singapore Airlines…" data-f="airline"', t('ticket.airlineHint'), false)
-    . '<div><label for="f-usageDate" class="field-label">' . e(t('ticket.usageDate')) . ' *</label><input id="f-usageDate" type="date" class="field-input" data-f="usageDate" data-window="300">'
-    . '<p class="field-error hidden" data-error="usageDate"></p></div></div>'
-    . '<div class="mt-4">' . notice('<strong>' . e(t('ticket.usageDate')) . ':</strong> ' . e(t('ticket.usageHint'))) . '</div>';
+$prefs = '<div class="max-w-sm"><label for="f-usageDate" class="field-label">' . e(t('ticket.usageDate')) . ' *</label><input id="f-usageDate" type="date" class="field-input" data-f="usageDate">'
+    . '<p class="field-error hidden" data-error="usageDate"></p></div>'
+    . '<div class="mt-4">' . notice('<strong>' . e(t('ticket.usageDate')) . ':</strong> ' . e(t('ticket.usageHint'))) . '</div>'
+    . '<div class="mt-5"><label for="f-note" class="field-label">' . e(t('ticket.note')) . ' <span class="font-normal text-slate-400">(' . e(t('form.optional')) . ')</span></label>'
+    . '<textarea id="f-note" rows="3" maxlength="500" class="field-input" placeholder="' . e(t('ticket.notePh')) . '" data-f="note"></textarea>'
+    . '<p class="field-error hidden" data-error="note"></p></div>';
 
 $pax = '<div class="grid gap-4 sm:grid-cols-3">'
     . count_select('adults', t('form.adults'), t('form.adultsHint'), 1)
     . count_select('children', t('form.children'), t('form.childrenHint'), 0)
     . count_select('infants', t('form.infants'), t('form.infantsHint'), 0)
-    . '</div><div class="mt-5">' . notice(e(t('form.nameAsPassport'))) . '</div>'
+    . '</div><div class="mt-5 space-y-3">' . notice(e(t('form.nameAsPassport'))) . notice(e(t('ticket.ageNote'))) . '</div>'
     . '<div class="mt-5 space-y-4" data-people="passengers"></div>';
 ?>
 <div class="container-page py-10 sm:py-14">

@@ -33,6 +33,9 @@ const TICKET_PRICE_PER_ROUTE_IDR = 100000;
 const TICKET_MAX_ROUTES = 5;
 const DUMMY_WINDOW_DAYS = 300;            // travel / stay dates: today … today + 300 days
 const PAX_SELECT_MAX = 9;                 // drop-downs 0–9
+const ADULT_MIN_AGE = 12;                 // on the departure date
+const INFANT_MAX_AGE_EXCLUSIVE = 2;       // infant = under 2, child = 2–11
+const PASSPORT_MIN_VALID_DAYS = 180;      // passport valid ≥ 180 days after departure
 
 // ── Dummy hotel ─────────────────────────────────────────────────────────────
 // Rp 100.000 per person per hotel (adults and children); infants free.
